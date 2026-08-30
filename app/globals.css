@@ -5045,6 +5045,7 @@ pre,
   background: var(--accent);
   border-color: var(--accent);
   color: var(--background);
+  isolation: isolate;
 }
 
 .current-plan-card .panel-kicker,
@@ -5060,15 +5061,52 @@ pre,
 }
 
 .current-plan-glow {
-  background: #84e7a5;
-  opacity: 0.24;
+  background: radial-gradient(
+    circle,
+    rgba(132, 231, 165, 0.42) 0%,
+    rgba(132, 231, 165, 0.16) 46%,
+    rgba(132, 231, 165, 0) 72%
+  );
+  border-radius: 50%;
+  opacity: 1;
 }
 
+.current-plan-main,
 .current-plan-status,
-.trial-meter,
-.billing-note {
+.trial-meter {
+  z-index: 1;
+}
+
+.current-plan-status {
+  background: transparent;
+}
+
+.current-plan-card .current-plan-status small {
+  color: rgba(250, 249, 247, 0.82);
+}
+
+.current-plan-status .status-badge--success {
+  background: #84e7a5;
+  color: var(--accent);
+}
+
+.current-plan-status .status-badge--danger {
+  background: #fc7981;
+  color: #5d1118;
+}
+
+.trial-meter {
   background: rgba(250, 249, 247, 0.1);
-  border-color: rgba(250, 249, 247, 0.16);
+  border: 1px solid rgba(250, 249, 247, 0.16);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.billing-note {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
 }
 
 .trial-meter > span {
@@ -5086,8 +5124,31 @@ pre,
 }
 
 .plan-icon {
-  background: var(--accent-soft);
+  background: rgba(250, 249, 247, 0.14);
+  border: 1px solid rgba(250, 249, 247, 0.16);
+  color: #84e7a5;
+}
+
+.plan-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.feature-list {
+  flex: 1;
+}
+
+.plan-button {
+  margin-top: auto;
+}
+
+.subscription-page .page-header .eyebrow,
+.subscription-page .plan-card .status-badge--success {
   color: var(--accent);
+}
+
+.subscription-page .plan-price span {
+  color: var(--muted);
 }
 
 .feature-list svg {

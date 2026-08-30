@@ -133,7 +133,7 @@ export function SubscriptionClient({
     : 0;
 
   return (
-    <div>
+    <div className="subscription-page">
       <PageHeader
         description="Choose the service access that fits your workflow. Billing changes are confirmed before access updates."
         eyebrow="Plan & billing"
