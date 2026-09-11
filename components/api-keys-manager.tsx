@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   CheckIcon,
+  ChevronDownIcon,
   CopyIcon,
   ImageIcon,
   KeyIcon,
@@ -15,6 +16,7 @@ import {
 } from "@/components/icons";
 import { PageHeader } from "@/components/page-header";
 import { dashboardRequest, jsonRequest } from "@/lib/client-api";
+import { canUseProduct, keyMatchesProduct } from "@/lib/access";
 import { DEMO_KEYS } from "@/lib/demo-data";
 import type { ApiKeyRecord, ApiKeyType, DashboardUser } from "@/lib/types";
 
@@ -54,6 +56,11 @@ const SERVICES: Array<{
   },
 ];
 
+SERVICES.push({ color: "violet", description: "Edit images using reference inputs", icon: ImageIcon,
+  label: "Image to image", prefix: "", type: "image2image" });
+SERVICES.push({ color: "blue", description: "Keys with no current product access", icon: KeyIcon,
+  label: "Other keys", prefix: "", type: "unknown" });
+
 const numberFormatter = new Intl.NumberFormat("en-US");
 
 function formatDate(value?: string | null): string {
@@ -67,15 +74,11 @@ function formatDate(value?: string | null): string {
 }
 
 function canCreateKeys(user: DashboardUser): boolean {
-  if (user.plan === "pro" || user.plan === "pro_plus") return true;
-  return user.plan === "trial" && !user.trial?.expired;
+  return SERVICES.some((service) => canUseProduct(user, service.type === "image_gen" ? "image" : service.type));
 }
 
-function canCreateKeyType(user: DashboardUser, keys: ApiKeyRecord[], type: ApiKeyType): boolean {
-  if (!canCreateKeys(user)) return false;
-  if (type === "video" && user.plan !== "pro_plus") return false;
-  if (user.plan === "trial") return !keys.some((key) => key.type === type);
-  return true;
+function canCreateKeyType(user: DashboardUser, _keys: ApiKeyRecord[], type: ApiKeyType): boolean {
+  return canUseProduct(user, type === "image_gen" ? "image" : type);
 }
 
 function normalizeKey(key: ApiKeyRecord): ApiKeyRecord {
@@ -89,6 +92,7 @@ function normalizeKey(key: ApiKeyRecord): ApiKeyRecord {
 
 export function ApiKeysManager({ demo, user }: { demo: boolean; user: DashboardUser }) {
   const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : []);
+  const [expandedService, setExpandedService] = useState<ApiKeyType | null>(null);
   const [loading, setLoading] = useState(!demo);
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -193,6 +197,7 @@ export function ApiKeysManager({ demo, user }: { demo: boolean; user: DashboardU
       const { full_key: secret, ...safeCreated } = created;
       const normalized = normalizeKey(safeCreated as ApiKeyRecord);
       setKeys((current) => [normalized, ...current]);
+      setExpandedService(type);
       if (secret) setCreatedSecret({ name: cleanName, value: secret });
       setName("");
       setFormOpen(false);
@@ -276,25 +281,44 @@ export function ApiKeysManager({ demo, user }: { demo: boolean; user: DashboardU
       </section>
 
       {loading ? (
-        <div className="key-service-grid" aria-busy="true" aria-label="Loading API keys">
-          {SERVICES.map((service) => <div className="skeleton skeleton-service-card" key={service.type} />)}
+        <div className="key-service-accordion" aria-busy="true" aria-label="Loading API keys">
+          {SERVICES.map((service) => <div className="skeleton skeleton-service-accordion" key={service.type} />)}
         </div>
       ) : (
-        <div className="key-service-grid">
+        <div className="key-service-accordion">
           {SERVICES.map((service) => {
             const Icon = service.icon;
-            const serviceKeys = keys.filter((key) => key.type === service.type);
+            const serviceKeys = keys.filter((key) => service.type === "unknown"
+              ? !(key.product_codes?.length) && key.type === "unknown"
+              : keyMatchesProduct(key, service.type === "image_gen" ? "image" : service.type));
+            if (service.type === "unknown" && !serviceKeys.length) return null;
             return (
-              <section className="panel key-service-card" key={service.type}>
-                <div className="key-service-heading">
-                  <span className={`service-icon service-icon--${service.color}`}><Icon /></span>
-                  <div>
-                    <h2>{service.label}</h2>
-                    <p>{service.description}</p>
-                  </div>
-                  <span className="count-badge">{serviceKeys.length}</span>
-                </div>
-                <div className="key-list">
+              <section className="panel key-service-item" key={service.type}>
+                <h2 className="key-service-title">
+                  <button
+                    aria-controls={`key-service-panel-${service.type}`}
+                    aria-expanded={expandedService === service.type}
+                    className="key-service-heading"
+                    id={`key-service-trigger-${service.type}`}
+                    onClick={() => setExpandedService((current) => current === service.type ? null : service.type)}
+                    type="button"
+                  >
+                    <span className={`service-icon service-icon--${service.color}`}><Icon /></span>
+                    <span className="key-service-copy">
+                      <span className="key-service-label">{service.label}</span>
+                      <span className="key-service-description">{service.description}</span>
+                    </span>
+                    <span className="count-badge" aria-label={`${serviceKeys.length} keys`}>{serviceKeys.length}</span>
+                    <ChevronDownIcon className="key-service-chevron" />
+                  </button>
+                </h2>
+                <div
+                  aria-labelledby={`key-service-trigger-${service.type}`}
+                  className="key-list"
+                  hidden={expandedService !== service.type}
+                  id={`key-service-panel-${service.type}`}
+                  role="region"
+                >
                   {serviceKeys.length ? serviceKeys.map((apiKey) => (
                     <article className="key-row" key={apiKey.id}>
                       <div className="key-row-main">
@@ -306,7 +330,7 @@ export function ApiKeysManager({ demo, user }: { demo: boolean; user: DashboardU
                               {apiKey.is_active ? "Active" : "Revoked"}
                             </span>
                           </div>
-                          <code>{service.prefix}••••{apiKey.key_hint}</code>
+                          <code>{apiKey.key_hint}••••</code>
                         </div>
                         {confirmDelete === apiKey.id ? (
                           <div className="delete-actions">
@@ -365,14 +389,12 @@ export function ApiKeysManager({ demo, user }: { demo: boolean; user: DashboardU
             </div>
             <label className="field-label" htmlFor="key-service">Service</label>
             <select id="key-service" onChange={(event) => setType(event.target.value as ApiKeyType)} value={type}>
-              {SERVICES.map((service) => (
+              {SERVICES.filter((service) => service.type !== "unknown").map((service) => (
                 <option disabled={!canCreateKeyType(user, keys, service.type)} key={service.type} value={service.type}>
                   {service.label}
-                  {service.type === "video" && user.plan !== "pro_plus"
-                    ? " — Creator only"
-                    : user.plan === "trial" && keys.some((key) => key.type === service.type)
-                      ? " — Trial limit reached"
-                      : ""}
+                  {!canUseProduct(user, service.type === "image_gen" ? "image" : service.type)
+                    ? " — Not available on this plan"
+                    : ""}
                 </option>
               ))}
             </select>

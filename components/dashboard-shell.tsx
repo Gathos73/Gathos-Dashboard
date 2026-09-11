@@ -15,11 +15,12 @@ import {
   MenuIcon,
   PlaygroundIcon,
   SearchIcon,
+  SparklesIcon,
+  SupportIcon,
   UserIcon,
   VoiceIcon,
   type IconProps,
 } from "@/components/icons";
-import { dashboardRequest } from "@/lib/client-api";
 import type { DashboardUser, Plan } from "@/lib/types";
 
 type NavigationItem = {
@@ -35,6 +36,12 @@ const NAVIGATION: NavigationItem[] = [
     href: "/",
     icon: AnalyticsIcon,
     label: "Usage analytics",
+  },
+  { 
+    description: "Status, retries, and downloads", 
+    href: "/generations", 
+    icon: SparklesIcon, 
+    label: "Generations" 
   },
   {
     description: "Create and manage credentials",
@@ -75,16 +82,25 @@ const PROFILE_ITEM: NavigationItem = {
   label: "Profile",
 };
 
+export const PRIORITY_SUPPORT_ITEM: NavigationItem = {
+  description: "Enterprise ticket history and assistance",
+  href: "/priority-support",
+  icon: SupportIcon,
+  label: "Priority support",
+};
+
 const SEARCH_ITEMS = [...NAVIGATION, PROFILE_ITEM];
 
 const PAGE_TITLES = new Map([
   ["/", "Usage analytics"],
   ["/api-keys", "API keys"],
   ["/playground", "Playground"],
+  ["/generations", "Generations"],
   ["/subscription", "Subscription"],
   ["/voices", "Voices"],
   ["/resources", "Documentation & skills"],
   ["/profile", "Profile"],
+  ["/priority-support", "Priority support"],
 ]);
 
 function isActivePath(pathname: string, href: string): boolean {
@@ -121,7 +137,7 @@ function serverViewportSnapshot(): boolean {
   return false;
 }
 
-export function DashboardShell({ children, demo, user }: { children: ReactNode; demo: boolean; user: DashboardUser }) {
+export function DashboardShell({ children, user }: { children: ReactNode; demo: boolean; user: DashboardUser }) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -137,14 +153,6 @@ export function DashboardShell({ children, demo, user }: { children: ReactNode; 
   const searchInput = useRef<HTMLInputElement>(null);
   const sidebarCloseButton = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    if (demo) return;
-    const controller = new AbortController();
-    dashboardRequest<{ user?: DashboardUser | null }>("/api/auth/me", { signal: controller.signal }).catch(() => {
-      // Route guards handle invalid sessions; this request only refreshes a stale plan cookie.
-    });
-    return () => controller.abort();
-  }, [demo]);
 
   useEffect(() => {
     if (!mobileViewport) return;
@@ -181,8 +189,15 @@ export function DashboardShell({ children, demo, user }: { children: ReactNode; 
 
   const title = PAGE_TITLES.get(pathname) ?? "Dashboard";
   const normalizedQuery = query.trim().toLowerCase();
+  const hasPrioritySupport = Boolean(user.priority_support || user.plan_details?.priority_support);
+  const accountNav = hasPrioritySupport
+    ? [...NAVIGATION.slice(3),PRIORITY_SUPPORT_ITEM]
+    : NAVIGATION.slice(3);
+  const searchCandidates = hasPrioritySupport
+    ? [...NAVIGATION, PRIORITY_SUPPORT_ITEM, PROFILE_ITEM]
+    : SEARCH_ITEMS;
   const matches = normalizedQuery
-    ? SEARCH_ITEMS.filter((item) =>
+    ? searchCandidates.filter((item) =>
         `${item.label} ${item.description}`.toLowerCase().includes(normalizedQuery),
       )
     : [];
@@ -219,7 +234,7 @@ export function DashboardShell({ children, demo, user }: { children: ReactNode; 
             <span aria-hidden="true" className="brand-mark">G</span>
             <span className="brand-copy sidebar-brand-copy">
               <strong className="brand-wordmark">Gathos</strong>
-              <small>Developer dashboard</small>
+              {/* <small>Developer dashboard</small> */}
             </span>
           </Link>
           <button
@@ -255,7 +270,7 @@ export function DashboardShell({ children, demo, user }: { children: ReactNode; 
           })}
 
           <p className="sidebar-section-label sidebar-section-label--spaced">Account</p>
-          {NAVIGATION.slice(3).map((item) => {
+          {accountNav.map((item) => {
             const Icon = item.icon;
             const active = isActivePath(pathname, item.href);
             return (
@@ -274,14 +289,6 @@ export function DashboardShell({ children, demo, user }: { children: ReactNode; 
             );
           })}
         </nav>
-
-        <div className="sidebar-health">
-          <span className="sidebar-scope-mark"><KeyIcon /></span>
-          <span>
-            <strong>User workspace</strong>
-            <small>Account-scoped tools only</small>
-          </span>
-        </div>
 
         <div className="sidebar-footer">
           <Link

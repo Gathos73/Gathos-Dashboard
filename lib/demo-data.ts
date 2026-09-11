@@ -3,6 +3,7 @@ import type {
   DashboardUser,
   UsageActivity,
   UsagePayload,
+  UsageRange,
   UsagePoint,
   VoiceSample,
 } from "@/lib/types";
@@ -56,6 +57,8 @@ export const DEMO_KEYS: ApiKeyRecord[] = [
   },
 ];
 
+DEMO_KEYS.push({ ...DEMO_KEYS[0], id: "demo-image2image-key", name: "Image edits", type: "image2image", key_hint: "i2i1" });
+
 export const DEMO_VOICES: VoiceSample[] = [
   {
     content_type: "audio/wav",
@@ -84,18 +87,28 @@ function seededCount(index: number, salt: number): number {
   return Math.max(0, Math.round(16 + wave + ((index * (salt + 3)) % 9)));
 }
 
-export function createDemoUsage(days: number): UsagePayload {
-  const safeDays = [7, 30, 90].includes(days) ? days : 30;
-  const series: UsagePoint[] = Array.from({ length: safeDays }, (_, index) => {
-    const date = new Date(ANCHOR);
-    date.setUTCDate(date.getUTCDate() - (safeDays - index - 1));
+export function createDemoUsage(range: UsageRange, windowSeconds: number): UsagePayload {
+  const end = new Date(ANCHOR);
+  const start = new Date(end);
+  const bucketMinutes = range === "current_window" ? 10 : range === "24h" ? 60 : 360;
+  const hours = range === "current_window" ? windowSeconds / 3600 : range === "24h" ? 24 : 168;
+  if (range === "current_window") {
+    const midnight = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+    start.setTime(midnight + Math.floor((start.getTime() - midnight) / (windowSeconds * 1000)) * windowSeconds * 1000);
+    end.setTime(start.getTime() + hours * 3600000);
+  } else start.setTime(end.getTime() - hours * 3600000);
+  const safeDays = hours / 24;
+  const series: UsagePoint[] = Array.from({ length: hours * 60 / bucketMinutes }, (_, index) => {
+    const date = new Date(start.getTime() + index * bucketMinutes * 60000);
     const image = seededCount(index, 2);
+    const image2image = Math.round(seededCount(index, 5) * 0.3);
     const tts = Math.round(seededCount(index, 7) * 0.48);
     const video = index % 4 === 0 ? Math.max(1, Math.round(seededCount(index, 11) * 0.11)) : 0;
     return {
-      date: date.toISOString().slice(0, 10),
+      date: date.toISOString(),
       image,
-      total: image + tts + video,
+      image2image,
+      total: image + image2image + tts + video,
       tts,
       video,
     };
@@ -103,7 +116,8 @@ export function createDemoUsage(days: number): UsagePayload {
   const imageTotal = series.reduce((sum, point) => sum + point.image, 0);
   const ttsTotal = series.reduce((sum, point) => sum + point.tts, 0);
   const videoTotal = series.reduce((sum, point) => sum + point.video, 0);
-  const total = imageTotal + ttsTotal + videoTotal;
+  const image2imageTotal = series.reduce((sum, point) => sum + point.image2image, 0);
+  const total = imageTotal + image2imageTotal + ttsTotal + videoTotal;
   const activity: UsageActivity[] = [
     {
       created_at: "2026-08-29T09:41:00Z",
@@ -126,26 +140,33 @@ export function createDemoUsage(days: number): UsagePayload {
     {
       created_at: "2026-08-28T15:26:00Z",
       id: "activity-4",
-      key_name: "Production images",
-      type: "image",
+      key_name: "Image edits",
+      type: "image2image",
     },
   ];
 
   return {
-    active_keys: 3,
+    limits: { access_active: true, items: [
+      { id: "demo-plan", label: "All services", kind: "requests", limit: 1000, used: 120, remaining: 880, window_seconds: windowSeconds, resets_at: end.toISOString() },
+      { id: "demo-concurrency", label: "All services", kind: "concurrency", limit: 4, used: 1, remaining: 3, window_seconds: null, resets_at: null },
+    ] },
+    active_keys: DEMO_KEYS.filter((key) => key.is_active).length,
     average_per_day: Number((total / safeDays).toFixed(1)),
     days: safeDays,
-    period_end: ANCHOR.toISOString(),
-    period_start: `${series[0]?.date}T00:00:00Z`,
-    recent_activity: activity,
+    bucket_minutes: bucketMinutes,
+    sampled_at: end.toISOString(),
+    period_end: end.toISOString(),
+    period_start: start.toISOString(),
+    recent_activity: activity.map((item, index) => ({ ...item, created_at: new Date(end.getTime() - (index + 1) * bucketMinutes * 60000).toISOString() })),
     series,
     services: [
+      { count: image2imageTotal, percentage: Math.round((image2imageTotal / total) * 100), type: "image2image" },
       { count: imageTotal, percentage: Math.round((imageTotal / total) * 100), type: "image" },
       { count: ttsTotal, percentage: Math.round((ttsTotal / total) * 100), type: "tts" },
       { count: videoTotal, percentage: Math.round((videoTotal / total) * 100), type: "video" },
     ],
     top_keys: DEMO_KEYS.map((key) => ({
-      count: Math.round((key.generations_count / 1952) * total),
+      count: key.type === "image2image" ? image2imageTotal : key.type === "image_gen" ? imageTotal : key.type === "tts" ? ttsTotal : videoTotal,
       id: key.id,
       name: key.name,
       type: key.type,

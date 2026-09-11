@@ -14,12 +14,14 @@ import {
   VoiceIcon,
   WarningIcon,
 } from "@/components/icons";
+import { PlaygroundDownload } from "@/components/playground-download";
 import { PageHeader } from "@/components/page-header";
+import { canUseProduct, keyMatchesProduct } from "@/lib/access";
 import { dashboardRequest, jsonRequest } from "@/lib/client-api";
-import { DEMO_KEYS } from "@/lib/demo-data";
-import type { ApiKeyRecord, ApiKeyType, DashboardUser, PlaygroundJob } from "@/lib/types";
+import { DEMO_KEYS, DEMO_VOICES } from "@/lib/demo-data";
+import type { ApiKeyRecord, ApiKeyType, DashboardUser, PlaygroundJob, VoiceSample } from "@/lib/types";
 
-type Service = "image" | "tts" | "video";
+type Service = "image" | "image2image" | "tts" | "video";
 type RunState = "idle" | "submitting" | "queued" | "completed" | "failed";
 type CatalogOption = { label: string; value: string };
 
@@ -30,7 +32,8 @@ const SERVICE_META: Record<Service, {
   label: string;
   pollService: string;
 }> = {
-  image: { endpoint: "/api/playground/image", icon: ImageIcon, keyType: "image_gen", label: "Image", pollService: "image-generation" },
+  image: { endpoint: "/api/playground/image", icon: ImageIcon, keyType: "image_gen", label: "Text to image", pollService: "image-generation" },
+  image2image: { endpoint: "/api/playground/image2image", icon: ImageIcon, keyType: "image2image", label: "Image to image", pollService: "image2image" },
   tts: { endpoint: "/api/playground/tts", icon: VoiceIcon, keyType: "tts", label: "Text to speech", pollService: "tts" },
   video: { endpoint: "/api/playground/video", icon: VideoIcon, keyType: "video", label: "Video", pollService: "video-generation" },
 };
@@ -44,10 +47,13 @@ const FALLBACK_VOICE_OPTIONS: CatalogOption[] = [
   { label: "Spraky", value: "spraky" },
 ];
 const NO_STYLE_OPTION: CatalogOption = { label: "No style preset", value: "" };
-const FALLBACK_VIDEO_STYLE_OPTIONS: CatalogOption[] = [
+// Snapshot of aliases reported available by the video proxy on 2026-09-11.
+// New 3D and Warm 3D resolve to the same model; show Warm 3D once.
+const VIDEO_STYLE_OPTIONS: CatalogOption[] = [
   NO_STYLE_OPTION,
-  ...["Cinematic", "Clay", "Anime", "Watercolor", "Paper Cutout", "Warm 3D"].map((style) => ({ label: style, value: style })),
+  ...["Anime", "Stylized 3D", "Warm 3D", "Cinematic", "2D Flat"].map((style) => ({ label: style, value: style })),
 ];
+const IMAGE_PRESETS = ["1024x1024", "1344x768", "768x1344"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -103,23 +109,6 @@ function normalizeVoiceOptions(payload: unknown): CatalogOption[] {
   return uniqueOptions(options);
 }
 
-function normalizeVideoStyleOptions(payload: unknown): CatalogOption[] {
-  const options = catalogItems(payload, ["styles", "video_styles", "items", "loras"]).flatMap((item) => {
-    if (typeof item === "string") {
-      const value = item.trim();
-      return value ? [{ label: value, value }] : [];
-    }
-    if (!isRecord(item)) return [];
-
-    const value = firstString(item, ["value", "name", "id", "filename", "slug"]);
-    if (!value) return [];
-    const label = firstString(item, ["label", "display_name", "displayName", "name"]) || value;
-    return [{ label, value }];
-  });
-
-  return uniqueOptions(options);
-}
-
 function sleep(milliseconds: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(resolve, milliseconds);
@@ -131,7 +120,8 @@ function sleep(milliseconds: number, signal: AbortSignal): Promise<void> {
 }
 
 function outputFromJob(service: Service, job: PlaygroundJob): string | null {
-  if (service === "image" && job.result?.image_base64) return `data:image/png;base64,${job.result.image_base64}`;
+  if ((service === "image" || service === "image2image") && job.result?.image_base64) return `data:image/png;base64,${job.result.image_base64}`;
+  if (service === "image2image") return job.image_url || job.result?.image_url || null;
   if (service === "tts" && job.result?.audio_base64) return `data:audio/wav;base64,${job.result.audio_base64}`;
   if (service === "video" && job.video_url) return job.video_url;
   return null;
@@ -158,19 +148,27 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
   const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : []);
   const [selectedKey, setSelectedKey] = useState("");
   const [prompt, setPrompt] = useState("A quiet, future-facing studio filled with warm morning light");
-  const [imageSize, setImageSize] = useState("1024x1024");
+  const [sourceImage, setSourceImage] = useState("");
+  const [referenceImage, setReferenceImage] = useState("");
+  const [imageWidth, setImageWidth] = useState("1024");
+  const [imageHeight, setImageHeight] = useState("1024");
+  const imageSize = `${imageWidth}x${imageHeight}`;
+  const dimensionLimits = service === "image2image" ? { min: 32, max: 4096, step: 1 } : { min: 512, max: 2048, step: 16 };
   const [ttsText, setTtsText] = useState("The tools that feel simplest often hide the most thoughtful systems.");
   const [voiceOptions, setVoiceOptions] = useState<CatalogOption[]>(FALLBACK_VOICE_OPTIONS);
+  const [customVoices, setCustomVoices] = useState<VoiceSample[]>(demo ? DEMO_VOICES : []);
+  const [voiceError, setVoiceError] = useState("");
   const [voice, setVoice] = useState(FALLBACK_VOICE_OPTIONS[0].value);
   const [speed, setSpeed] = useState(1);
-  const [videoStyleOptions, setVideoStyleOptions] = useState<CatalogOption[]>(FALLBACK_VIDEO_STYLE_OPTIONS);
   const [videoStyle, setVideoStyle] = useState("");
+  const [generationId, setGenerationId] = useState<string | null>(null);
   const [generateAudio, setGenerateAudio] = useState(true);
   const [runState, setRunState] = useState<RunState>("idle");
   const [job, setJob] = useState<PlaygroundJob | null>(null);
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState("");
   const pollController = useRef<AbortController | null>(null);
+  const hasVoiceAccess = canUseProduct(user, "tts");
 
   useEffect(() => {
     if (demo) return;
@@ -185,39 +183,46 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
   }, [demo]);
 
   useEffect(() => {
-    if (demo || (user.plan !== "pro" && user.plan !== "pro_plus")) return;
+    if (demo || !hasVoiceAccess) return;
     const controller = new AbortController();
 
-    dashboardRequest<unknown>("/api/playground/voices", { signal: controller.signal })
+    if (hasVoiceAccess) dashboardRequest<unknown>("/api/playground/voices", { signal: controller.signal })
       .then((payload) => {
         const options = normalizeVoiceOptions(payload);
         if (!options.length) return;
         setVoiceOptions(options);
-        setVoice((current) => options.some((option) => option.value === current) ? current : options[0].value);
       })
       .catch(() => {
         // Keep the bundled presets when the live catalogue is unavailable.
       });
 
-    if (user.plan === "pro_plus") {
-      dashboardRequest<unknown>("/api/playground/video-styles", { signal: controller.signal })
+    return () => controller.abort();
+  }, [demo, hasVoiceAccess]);
+
+  useEffect(() => {
+    if (demo || !hasVoiceAccess || service !== "tts") return;
+    const controller = new AbortController();
+    function loadCustomVoices() {
+      dashboardRequest<{ voices?: VoiceSample[] }>("/api/voices", { signal: controller.signal, cache: "no-store" })
         .then((payload) => {
-          const liveOptions = normalizeVideoStyleOptions(payload);
-          if (!liveOptions.length) return;
-          const options = [NO_STYLE_OPTION, ...liveOptions];
-          setVideoStyleOptions(options);
-          setVideoStyle((current) => options.some((option) => option.value === current) ? current : "");
+          setCustomVoices(payload.voices || []);
+          setVoiceError("");
         })
-        .catch(() => {
-          // Keep the bundled style presets when the live catalogue is unavailable.
+        .catch((requestError: unknown) => {
+          if (controller.signal.aborted) return;
+          setVoiceError(requestError instanceof Error ? requestError.message : "Your saved voices could not be loaded.");
         });
     }
-
-    return () => controller.abort();
-  }, [demo, user.plan]);
+    loadCustomVoices();
+    window.addEventListener("focus", loadCustomVoices);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", loadCustomVoices);
+    };
+  }, [demo, hasVoiceAccess, service]);
 
   const serviceKeys = useMemo(
-    () => keys.filter((key) => key.type === SERVICE_META[service].keyType && key.is_active),
+    () => keys.filter((key) => keyMatchesProduct(key, service) && key.is_active),
     [keys, service],
   );
   const effectiveSelectedKey = serviceKeys.some((key) => key.id === selectedKey)
@@ -230,11 +235,12 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
     if (service === "tts") return { text: ttsText, voice, speed };
     if (service === "video") return { prompt, mode: "t2av", style: videoStyle || undefined, generate_audio: generateAudio };
     const [width, height] = imageSize.split("x").map(Number);
+    if (service === "image2image") return { prompt, width, height, image1_path: sourceImage.trim(), image2_path: referenceImage.trim() || undefined };
     return { prompt, width, height };
-  }, [generateAudio, imageSize, prompt, service, speed, ttsText, videoStyle, voice]);
+  }, [generateAudio, imageSize, prompt, service, speed, ttsText, videoStyle, voice, sourceImage, referenceImage]);
 
-  const creatorRequired = service === "video" && user.plan !== "pro_plus";
-  const paidRequired = user.plan !== "pro" && user.plan !== "pro_plus";
+  const creatorRequired = service === "video" && !canUseProduct(user, "video");
+  const paidRequired = !canUseProduct(user, service);
 
   function changeService(nextService: Service) {
     pollController.current?.abort();
@@ -242,6 +248,7 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
     setSelectedKey("");
     setRunState("idle");
     setJob(null);
+    setGenerationId(null);
     setOutput(null);
     setError("");
   }
@@ -286,6 +293,7 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
     pollController.current = controller;
     setRunState("submitting");
     setJob(null);
+    setGenerationId(null);
     setOutput(null);
     setError("");
 
@@ -309,6 +317,7 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
       );
       if (!accepted.job_id) throw new Error("The service did not return a job ID.");
       if (!accepted.poll_token) throw new Error("The service did not return a secure polling token.");
+      setGenerationId(accepted.generation_id || null);
       setJob(accepted);
       setRunState("queued");
       await pollJob(accepted.job_id, accepted.poll_token, controller);
@@ -354,7 +363,7 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
                   type="button"
                 >
                   <Icon /> {SERVICE_META[item].label}
-                  {item === "video" && user.plan !== "pro_plus" ? <span>Creator</span> : null}
+                  {item === "video" && !canUseProduct(user, "video") ? <span>Creator</span> : null}
                 </button>
               );
             })}
@@ -371,16 +380,35 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
               {serviceKeys.length ? serviceKeys.map((key) => <option key={key.id} value={key.id}>{key.name} · •••• {key.key_hint}</option>) : <option value="">No active {SERVICE_META[service].label.toLowerCase()} key</option>}
             </select>
 
-            {service === "image" ? (
+            {(service === "image" || service === "image2image") ? (
               <>
-                <label className="field-label" htmlFor="image-prompt">Prompt</label>
+                {service === "image2image" ? (
+                  <>
+                    <label className="field-label" htmlFor="source-image">Source image URL</label>
+                    <input id="source-image" type="url" required placeholder="https://example.com/source.png" value={sourceImage} onChange={(event) => setSourceImage(event.target.value)} />
+                    <label className="field-label" htmlFor="reference-image">Second reference image URL (optional)</label>
+                    <input id="reference-image" type="url" placeholder="https://example.com/reference.png" value={referenceImage} onChange={(event) => setReferenceImage(event.target.value)} />
+                  </>
+                ) : null}
+                <label className="field-label" htmlFor="image-prompt">{service === "image2image" ? "Editing instructions" : "Prompt"}</label>
                 <textarea id="image-prompt" maxLength={2000} onChange={(event) => setPrompt(event.target.value)} rows={5} value={prompt} />
                 <label className="field-label" htmlFor="image-size">Canvas</label>
-                <select id="image-size" onChange={(event) => setImageSize(event.target.value)} value={imageSize}>
+                <select id="image-size" onChange={(event) => {
+                  if (!event.target.value) return;
+                  const [width, height] = event.target.value.split("x");
+                  setImageWidth(width);
+                  setImageHeight(height);
+                }} value={IMAGE_PRESETS.includes(imageSize) ? imageSize : ""}>
                   <option value="1024x1024">Square · 1024 × 1024</option>
                   <option value="1344x768">Landscape · 1344 × 768</option>
                   <option value="768x1344">Portrait · 768 × 1344</option>
+                  <option value="" disabled>Custom dimensions</option>
                 </select>
+                <div className="form-two-column">
+                  <div><label className="field-label" htmlFor="image-width">Width (px)</label><input id="image-width" type="number" required {...dimensionLimits} aria-describedby="canvas-help" value={imageWidth} onChange={(event) => setImageWidth(event.target.value)} /></div>
+                  <div><label className="field-label" htmlFor="image-height">Height (px)</label><input id="image-height" type="number" required {...dimensionLimits} aria-describedby="canvas-help" value={imageHeight} onChange={(event) => setImageHeight(event.target.value)} /></div>
+                </div>
+                <small id="canvas-help" className="muted">{service === "image" ? "Each dimension must be 512–2048 pixels, in multiples of 16." : "Each dimension must be a whole number from 32–4096 pixels."}</small>
               </>
             ) : null}
 
@@ -389,9 +417,14 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
                 <label className="field-label" htmlFor="tts-text">Text</label>
                 <textarea id="tts-text" maxLength={10000} onChange={(event) => setTtsText(event.target.value)} rows={5} value={ttsText} />
                 <div className="form-two-column">
-                  <div><label className="field-label" htmlFor="tts-voice">Voice</label><select id="tts-voice" onChange={(event) => setVoice(event.target.value)} value={voice}>{voiceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div>
+                  <div><label className="field-label" htmlFor="tts-voice">Voice</label><select id="tts-voice" onChange={(event) => setVoice(event.target.value)} value={voice}>
+                    {!voiceOptions.some((option) => option.value === voice) && !customVoices.some((sample) => sample.id === voice) ? <option disabled value={voice}>Selected voice unavailable — choose a voice</option> : null}
+                    <optgroup label="Preset voices">{voiceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</optgroup>
+                    {customVoices.length ? <optgroup label="Your voices">{customVoices.map((sample) => <option key={sample.id} value={sample.id}>{sample.name} · {sample.language.toUpperCase()}</option>)}</optgroup> : null}
+                  </select></div>
                   <div><label className="field-label" htmlFor="tts-speed">Speed · {speed.toFixed(1)}×</label><input id="tts-speed" max="1.5" min="0.7" onChange={(event) => setSpeed(Number(event.target.value))} step="0.1" type="range" value={speed} /></div>
                 </div>
+                {voiceError ? <div className="inline-notice inline-notice--warning" role="alert"><WarningIcon /> Saved voices could not be loaded: {voiceError}</div> : null}
               </>
             ) : null}
 
@@ -400,14 +433,15 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
                 <label className="field-label" htmlFor="video-prompt">Scene prompt</label>
                 <textarea id="video-prompt" maxLength={2000} onChange={(event) => setPrompt(event.target.value)} rows={5} value={prompt} />
                 <div className="form-two-column">
-                  <div><label className="field-label" htmlFor="video-style">Style</label><select id="video-style" onChange={(event) => setVideoStyle(event.target.value)} value={videoStyle}>{videoStyleOptions.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}</select></div>
+                  <div><label className="field-label" htmlFor="video-style">Style</label><select id="video-style" onChange={(event) => setVideoStyle(event.target.value)} value={videoStyle}>{VIDEO_STYLE_OPTIONS.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}</select></div>
                   <label className="checkbox-card"><input checked={generateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} type="checkbox" /><span><strong>Generate audio</strong><small>Return a video with model-generated sound.</small></span></label>
                 </div>
               </>
             ) : null}
 
+
             {!serviceKeys.length ? <div className="inline-notice inline-notice--warning"><WarningIcon /> Create an active {SERVICE_META[service].label.toLowerCase()} key first. <Link href="/api-keys">Open API keys</Link></div> : null}
-            {paidRequired ? <div className="inline-notice inline-notice--warning"><WarningIcon /> The playground requires Pro or Creator access. <Link href="/subscription">View plans</Link></div> : null}
+            {paidRequired ? <div className="inline-notice inline-notice--warning"><WarningIcon /> Your plan does not include this product. <Link href="/subscription">View plans</Link></div> : null}
             {creatorRequired ? <div className="inline-notice inline-notice--warning"><WarningIcon /> Video generation is available on the Creator plan. <Link href="/subscription">Upgrade</Link></div> : null}
 
             <button className="button button-primary run-button" disabled={!effectiveSelectedKey || paidRequired || creatorRequired || runState === "submitting" || runState === "queued"} type="submit">
@@ -437,9 +471,10 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
             ) : null}
             {runState === "idle" ? <div className="output-placeholder"><span><SparklesIcon /></span><p>Configure a request and run it. Results, progress, and errors appear here.</p></div> : null}
             {runState === "completed" && demo ? <div className="demo-output"><span>Demo response</span><strong>Request accepted and completed</strong><p>Connect the FastAPI backend to render generated media here.</p><code>{job?.job_id}</code></div> : null}
-            {runState === "completed" && output && service === "image" ? <Image alt="Generated playground result" className="playground-image-result" height={1024} src={output} unoptimized width={1024} /> : null}
+            {runState === "completed" && output && (service === "image" || service === "image2image") ? <Image alt="Generated playground result" className="playground-image-result" height={1024} src={output} unoptimized width={1024} /> : null}
             {runState === "completed" && output && service === "tts" ? <audio className="playground-audio-result" controls src={output} /> : null}
             {runState === "completed" && output && service === "video" ? <video className="playground-video-result" controls src={output} /> : null}
+            {runState === "completed" && output ? <PlaygroundDownload key={output} output={output} generationId={generationId} service={service} /> : null}
             {runState === "completed" && !output && !demo ? <div className="demo-output"><strong>Job completed</strong><p>The service completed without a previewable output URL.</p></div> : null}
             {runState === "failed" ? <div className="output-error"><WarningIcon /><p>{error || job?.error || "This request failed."}</p></div> : null}
           </section>

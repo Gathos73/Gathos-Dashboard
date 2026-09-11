@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AnalyticsIcon, CheckIcon, KeyIcon, SparklesIcon } from "@/components/icons";
+import { ArrowLeftIcon, AnalyticsIcon, CheckIcon, KeyIcon, SparklesIcon } from "@/components/icons";
 import { getCurrentUser } from "@/lib/server-user";
 import { LoginForm } from "./login-form";
 
@@ -41,7 +41,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <div className="login-security"><span className="status-dot" /><p><strong>Protected by Gathos authentication</strong><small>Your signed-in session stays in a secure HTTP-only cookie.</small></p></div>
           <p className="login-legal">By continuing, you agree to the Gathos <a href="https://gathos.com/legal?tab=terms">Terms</a> and <a href="https://gathos.com/legal?tab=privacy">Privacy Policy</a>.</p>
         </div>
-        <Link className="back-to-site" href="https://gathos.com">← Back to gathos.com</Link>
+        <Link className="back-to-site" href="https://gathos.com"><ArrowLeftIcon size={14} /> Back to gathos.com</Link>
       </section>
 
       <aside className="login-story">

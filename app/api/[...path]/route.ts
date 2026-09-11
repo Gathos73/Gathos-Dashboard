@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 
 import { getBackendUrl } from "@/lib/server-user";
+import { accountCache } from "@/lib/server-account-cache";
+import { resolveAssetDownload } from "@/lib/asset-download";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -48,7 +50,17 @@ function methodIs(method: string, ...allowed: string[]): boolean {
 function isAllowedRoute(path: string[], method: string): boolean {
   const joined = path.join("/");
 
+  if (joined === "generations") return methodIs(method, "GET", "HEAD");
+  if (path[0] === "generations" && UUID_PATTERN.test(path[1] ?? "")) {
+    if (path.length === 2) return methodIs(method, "GET", "HEAD");
+    if (path.length === 3 && path[2] === "retry") return method === "POST";
+  }
+  if (path.length === 3 && path[0] === "assets" && UUID_PATTERN.test(path[1]) && path[2] === "download") {
+    return methodIs(method, "GET", "HEAD");
+  }
+
   if (joined === "auth/me" || joined === "auth/usage") return methodIs(method, "GET", "HEAD");
+  if (joined === "auth/plans") return methodIs(method, "GET", "HEAD");
   if (joined === "auth/logout") return method === "POST";
   if (joined === "auth/google" || joined === "auth/login") return methodIs(method, "GET", "HEAD");
   if (joined === "otp/login") return method === "POST";
@@ -58,6 +70,7 @@ function isAllowedRoute(path: string[], method: string): boolean {
   }
   if (joined === "auth/subscribe") return method === "POST";
   if (joined === "auth/subscribe/upgrade-creator") return method === "POST";
+  if (joined === "priority-support") return methodIs(method, "GET", "POST", "HEAD");
 
   if (joined === "voices") return methodIs(method, "GET", "HEAD");
   if (joined === "voices/upload") return method === "POST";
@@ -68,14 +81,14 @@ function isAllowedRoute(path: string[], method: string): boolean {
     return methodIs(method, "GET", "HEAD") && UUID_PATTERN.test(path[1]);
   }
 
-  if (["playground/image", "playground/tts", "playground/video"].includes(joined)) {
+  if (["playground/image", "playground/image2image", "playground/tts", "playground/video"].includes(joined)) {
     return method === "POST";
   }
   if (["playground/voices", "playground/video-styles"].includes(joined)) {
     return methodIs(method, "GET", "HEAD");
   }
   if (path.length === 4 && path[0] === "playground" && path[1] === "jobs") {
-    const serviceAllowed = ["image-generation", "tts", "video-generation"].includes(path[2]);
+    const serviceAllowed = ["image-generation", "image2image", "tts", "video-generation"].includes(path[2]);
     return methodIs(method, "GET", "HEAD") && serviceAllowed && IDENTIFIER_PATTERN.test(path[3]);
   }
 
@@ -182,15 +195,23 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
     return Response.json({ error: "invalid_request_body" }, { status: 400 });
   }
 
+  const token = request.cookies.get("gathos_session")?.value;
+  const refreshAccount = !SAFE_METHODS.has(request.method) || path.join("/") === "auth/me";
+  if (token && refreshAccount) accountCache.invalidate(token);
   try {
-    const upstream = await fetch(upstreamUrl, {
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(130_000)]);
+    let upstream = await fetch(upstreamUrl, {
       body: rawBody,
       cache: "no-store",
       headers: requestHeaders(request),
       method: request.method,
       redirect: "manual",
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(130_000)]),
+      signal,
     });
+    if (token && (upstream.status === 401 || upstream.status === 403)) accountCache.invalidate(token);
+    if (path[0] === "assets" && path[2] === "download" && request.method === "GET") {
+      upstream = await resolveAssetDownload(upstream, signal);
+    }
     return new Response(request.method === "HEAD" ? null : upstream.body, {
       headers: responseHeaders(upstream),
       status: upstream.status,
@@ -207,6 +228,9 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
       { error: "backend_unavailable", message: "The dashboard API is temporarily unavailable." },
       { status: 502 },
     );
+  } finally {
+    // Also discard reads that raced with a mutation or a live billing refresh.
+    if (token && refreshAccount) accountCache.invalidate(token);
   }
 }
 

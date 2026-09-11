@@ -1,3 +1,5 @@
+import { cachedRequest, clearRequestCache } from "./request-cache";
+
 export class DashboardApiError extends Error {
   retryAfterSeconds?: number;
   status: number;
@@ -11,6 +13,17 @@ export class DashboardApiError extends Error {
 }
 
 export async function dashboardRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+  const live = url === "/api/auth/me" || url.startsWith("/api/playground/jobs/") || url.endsWith("/url");
+  if (method === "GET" && !live && options.cache !== "no-store" && typeof window !== "undefined") {
+    return cachedRequest(url, () => uncachedRequest<T>(url, { ...options, signal: undefined }), options.signal, options.cache === "reload");
+  }
+  if (method !== "GET") clearRequestCache();
+  try { return await uncachedRequest<T>(url, options); }
+  finally { if (method !== "GET") clearRequestCache(); }
+}
+
+async function uncachedRequest<T>(url: string, options: RequestInit): Promise<T> {
   const response = await fetch(url, {
     cache: "no-store",
     credentials: "same-origin",
@@ -25,6 +38,7 @@ export async function dashboardRequest<T>(url: string, options: RequestInit = {}
       payload = { message: text };
     }
   }
+  if (response.status === 401 || response.status === 403) clearRequestCache();
   if (!response.ok) {
     const body = payload as {
       detail?: string | { message?: string };

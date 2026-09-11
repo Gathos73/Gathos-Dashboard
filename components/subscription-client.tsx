@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { CardIcon, CheckIcon, SparklesIcon, VideoIcon, VoiceIcon, WarningIcon } from "@/components/icons";
+import { CardIcon, CheckIcon, SparklesIcon, VoiceIcon, WarningIcon } from "@/components/icons";
 import { PageHeader } from "@/components/page-header";
+import { SubscriptionDetails } from "@/components/subscription-details";
 import { dashboardRequest } from "@/lib/client-api";
 import type { DashboardUser, Plan } from "@/lib/types";
 
@@ -16,12 +17,18 @@ type CheckoutResponse = {
 };
 
 type MeResponse = { user?: DashboardUser | null };
+type AvailablePlan = { code: string; display_name: string; description: string | null; price_minor: number; currency: string; billing_interval: string; products: string[]; is_downgrade: boolean };
+function formatPlanPrice(amount: number, currency: string): string {
+  const formatter = new Intl.NumberFormat("en-US", { style: "currency", currency });
+  return formatter.format(amount / 10 ** (formatter.resolvedOptions().maximumFractionDigits ?? 2));
+}
 
-const PLAN_DETAILS = {
+const PLAN_DETAILS: Record<string, { label: string; price: string; cadence: string }> = {
   free: { label: "Free", price: "$0", cadence: "forever" },
   trial: { label: "Trial", price: "$0", cadence: "for 7 days" },
   pro: { label: "Pro", price: "$18", cadence: "per month" },
   pro_plus: { label: "Creator", price: "$45", cadence: "per month" },
+  business: { label: "Business", price: "Custom", cadence: "agreement" },
   starter: { label: "Starter", price: "Custom", cadence: "plan" },
   scale: { label: "Scale", price: "Custom", cadence: "plan" },
 } satisfies Record<Plan, { cadence: string; label: string; price: string }>;
@@ -31,29 +38,32 @@ export function SubscriptionClient({
   paymentTarget,
 }: {
   initialUser: DashboardUser;
-  paymentTarget: "pro" | "pro_plus" | null;
+  paymentTarget: string | null;
 }) {
   const [user, setUser] = useState(initialUser);
-  const [loadingPlan, setLoadingPlan] = useState<"pro" | "pro_plus" | null>(null);
-  const initiallyConfirmed = paymentTarget === "pro_plus"
-    ? initialUser.plan === "pro_plus"
-    : paymentTarget === "pro"
-      ? initialUser.plan === "pro" || initialUser.plan === "pro_plus"
-      : false;
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const initiallyConfirmed = Boolean(paymentTarget && initialUser.plan === paymentTarget);
   const [message, setMessage] = useState(
     paymentTarget
       ? initiallyConfirmed
-        ? `${PLAN_DETAILS[initialUser.plan].label} is active on your account.`
+        ? `${initialUser.plan_details?.display_name || PLAN_DETAILS[initialUser.plan]?.label || initialUser.plan} is active on your account.`
         : "Confirming your subscription with our billing provider…"
       : "",
   );
   const [error, setError] = useState("");
+  const [planOptions, setPlanOptions] = useState<{ forPlan: string; plans: AvailablePlan[] } | null>(null);
+  const availablePlans = planOptions?.forPlan === user.plan ? planOptions.plans : null;
+  useEffect(() => {
+    let active = true;
+    void dashboardRequest<{ plans: AvailablePlan[] }>("/api/auth/plans", { cache: "no-store" })
+      .then((result) => { if (active) setPlanOptions({ forPlan: user.plan, plans: result.plans }); })
+      .catch(() => { if (active) { setPlanOptions({ forPlan: user.plan, plans: [] }); setError("Could not load available plans. Please refresh to try again."); } });
+    return () => { active = false; };
+  }, [user.plan]);
 
   useEffect(() => {
     if (!paymentTarget) return;
-    const targetConfirmed = paymentTarget === "pro_plus"
-      ? user.plan === "pro_plus"
-      : user.plan === "pro" || user.plan === "pro_plus";
+    const targetConfirmed = user.plan === paymentTarget;
     if (targetConfirmed) {
       window.history.replaceState({}, "", "/subscription");
       return;
@@ -69,12 +79,10 @@ export function SubscriptionClient({
         const payload = await dashboardRequest<MeResponse>("/api/auth/me");
         if (!active) return;
         const refreshedPlan = payload.user?.plan;
-        const refreshedTarget = paymentTarget === "pro_plus"
-          ? refreshedPlan === "pro_plus"
-          : refreshedPlan === "pro" || refreshedPlan === "pro_plus";
+        const refreshedTarget = refreshedPlan === paymentTarget;
         if (payload.user && refreshedTarget) {
           setUser(payload.user);
-          setMessage(`${PLAN_DETAILS[payload.user.plan].label} is now active on your account.`);
+          setMessage(`${payload.user.plan_details?.display_name || PLAN_DETAILS[payload.user.plan]?.label || payload.user.plan} is now active on your account.`);
           window.history.replaceState({}, "", "/subscription");
           return;
         }
@@ -96,14 +104,16 @@ export function SubscriptionClient({
     };
   }, [paymentTarget, user.plan]);
 
-  async function choosePlan(target: "pro" | "pro_plus") {
+  async function choosePlan(target: string) {
+    const selectedPlan = availablePlans?.find((plan) => plan.code === target);
+    if (!selectedPlan || selectedPlan.is_downgrade || target === user.plan || loadingPlan !== null) return;
     setLoadingPlan(target);
     setError("");
     setMessage("");
     try {
       const isCreatorUpgrade = target === "pro_plus" && user.plan === "pro";
       const response = await dashboardRequest<CheckoutResponse>(
-        isCreatorUpgrade ? "/api/auth/subscribe/upgrade-creator" : `/api/auth/subscribe?plan=${target}`,
+        isCreatorUpgrade ? "/api/auth/subscribe/upgrade-creator" : `/api/auth/subscribe?plan=${encodeURIComponent(target)}`,
         { method: "POST" },
       );
       if (response.url) {
@@ -111,9 +121,10 @@ export function SubscriptionClient({
         return;
       }
       if (response.changed) {
-        const updatedPlan = target;
-        setUser((current) => ({ ...current, plan: updatedPlan }));
-        setMessage(`${PLAN_DETAILS[updatedPlan].label} is now active on your account.`);
+        const refreshed = await dashboardRequest<MeResponse>("/api/auth/me");
+        if (!refreshed.user) throw new Error("Your plan changed, but the subscription details could not be refreshed. Please reload this page.");
+        setUser(refreshed.user);
+        setMessage(`${refreshed.user.plan_details?.display_name || PLAN_DETAILS[refreshed.user.plan]?.label || refreshed.user.plan} is now active on your account.`);
       } else if (response.pendingPayment) {
         setMessage(response.message || "Your payment is processing. Access will update after confirmation.");
       } else {
@@ -126,10 +137,17 @@ export function SubscriptionClient({
     }
   }
 
-  const current = PLAN_DETAILS[user.plan] || PLAN_DETAILS.free;
+  const fallback = PLAN_DETAILS[user.plan] || { label: user.plan, price: "Custom", cadence: "agreement" };
+  const details = user.plan_details;
+  const current = details ? {
+    label: details.display_name,
+    price: details.display_price || formatPlanPrice(details.price_minor, details.currency),
+    cadence: details.billing_label || ({ month: "per month", year: "per year", none: "" }[details.billing_interval] ?? details.billing_interval),
+  } : fallback;
+  const accessActive = user.access_active ?? !(user.plan === "trial" && user.trial?.expired);
   const trialExpired = user.plan === "trial" && user.trial?.expired;
   const trialProgress = user.trial
-    ? Math.min(100, Math.round((user.trial.generations_used / Math.max(1, user.trial.generations_limit)) * 100))
+    ? Math.min(100, Math.round((user.trial.window_used / Math.max(1, user.trial.window_limit ?? 1)) * 100))
     : 0;
 
   return (
@@ -150,86 +168,49 @@ export function SubscriptionClient({
           <div>
             <p className="panel-kicker">Current plan</p>
             <h2>{current.label}</h2>
-            <p>{current.price} <span>{current.cadence}</span></p>
+            <p>{user.is_comped ? "$0" : current.price} <span>{user.is_comped ? "complimentary" : current.cadence}</span></p>
           </div>
         </div>
         <div className="current-plan-status">
-          <span className={trialExpired ? "status-badge status-badge--danger" : "status-badge status-badge--success"}>
-            {trialExpired ? "Expired" : "Active"}
+          <span className={!accessActive ? "status-badge status-badge--danger" : "status-badge status-badge--success"}>
+            {accessActive ? "Active" : trialExpired ? "Expired" : "Access unavailable"}
           </span>
-          <small>{user.plan === "trial" && user.trial ? `${user.trial.days_left} days remaining` : "Access is ready"}</small>
+          <small>{user.plan === "trial" && user.trial ? `${user.trial.days_left} days remaining` : accessActive ? "Access is ready" : user.entitlement_status || "No active entitlement"}</small>
         </div>
         {user.plan === "trial" && user.trial ? (
           <div className="trial-meter">
-            <div><span>Trial generations</span><strong>{user.trial.generations_used} / {user.trial.generations_limit}</strong></div>
+            <div><span>Current UTC window</span><strong>{user.trial.window_used} / {user.trial.window_limit ?? "Unlimited"}</strong></div>
             <div className="progress-track"><span className="progress-fill progress-fill--image" style={{ width: `${trialProgress}%` }} /></div>
           </div>
         ) : null}
       </section>
 
+      <SubscriptionDetails user={user} />
+
       <div className="plans-heading">
-        <div><p className="panel-kicker">Available plans</p><h2>Build without metering every idea.</h2></div>
-        <p>Both paid plans include unlimited image and TTS requests, multiple keys, analytics, and the playground.</p>
+        <div><p className="panel-kicker">Available plans</p><h2>Choose your plan.</h2></div>
+        <p>Access activates after payment. Applicable taxes are shown at checkout.</p>
       </div>
-
       <div className="plan-grid">
-        <article className={`plan-card ${user.plan === "pro" ? "is-current" : ""}`}>
-          <div className="plan-card-top">
-            <span className="service-icon service-icon--violet"><SparklesIcon /></span>
-            {user.plan === "pro" ? <span className="status-badge status-badge--success">Current</span> : null}
-          </div>
-          <p className="plan-audience">For products using image and voice</p>
-          <h3>Pro</h3>
-          <div className="plan-price"><strong>$18</strong><span>/ month</span></div>
-          <ul className="feature-list">
-            <li><CheckIcon /> Unlimited image generation</li>
-            <li><CheckIcon /> Unlimited text to speech</li>
-            <li><CheckIcon /> Custom voice samples</li>
-            <li><CheckIcon /> Multiple API keys</li>
-            <li><CheckIcon /> Usage analytics and playground</li>
-          </ul>
-          <button
-            className="button button-secondary plan-button"
-            disabled={user.plan === "pro" || user.plan === "pro_plus" || loadingPlan !== null}
-            onClick={() => choosePlan("pro")}
-            type="button"
-          >
-            {user.plan === "pro" ? "Your current plan" : user.plan === "pro_plus" ? "Included in Creator" : loadingPlan === "pro" ? "Opening checkout…" : "Choose Pro"}
-          </button>
-        </article>
-
-        <article className={`plan-card plan-card--featured ${user.plan === "pro_plus" ? "is-current" : ""}`}>
-          <div className="featured-ribbon">Full creative API</div>
-          <div className="plan-card-top">
-            <span className="service-icon service-icon--green"><VideoIcon /></span>
-            {user.plan === "pro_plus" ? <span className="status-badge status-badge--success">Current</span> : <span className="status-badge status-badge--violet">Popular</span>}
-          </div>
-          <p className="plan-audience">For end-to-end creator workflows</p>
-          <h3>Creator</h3>
-          <div className="plan-price"><strong>$45</strong><span>/ month</span></div>
-          <ul className="feature-list">
-            <li><CheckIcon /> Everything in Pro</li>
-            <li><CheckIcon /> Text-to-video generation</li>
-            <li><CheckIcon /> Generated video audio</li>
-            <li><CheckIcon /> Image and audio conditioned modes</li>
-            <li><CheckIcon /> Creator video API keys</li>
-          </ul>
-          <button
-            className="button button-primary plan-button"
-            disabled={user.plan === "pro_plus" || loadingPlan !== null}
-            onClick={() => choosePlan("pro_plus")}
-            type="button"
-          >
-            {user.plan === "pro_plus" ? "Your current plan" : loadingPlan === "pro_plus" ? "Checking billing…" : user.plan === "pro" ? "Upgrade for $27" : "Choose Creator"}
-          </button>
-        </article>
+        {availablePlans === null ? <p>Loading plans…</p> : availablePlans.length === 0 ? <p>No public plans are available for checkout right now.</p> : availablePlans.map((plan) => (
+          <article key={plan.code} className={`plan-card ${user.plan === plan.code ? "is-current" : ""}`}>
+            <div className="plan-card-top"><span className="service-icon service-icon--violet"><SparklesIcon /></span></div>
+            <h3>{plan.display_name}</h3>
+            <p>{plan.description}</p>
+            <div className="plan-price"><strong>{formatPlanPrice(plan.price_minor, plan.currency)}</strong><span>{plan.billing_interval === "none" ? "one time" : `/ ${plan.billing_interval}`}</span></div>
+            <ul className="feature-list">{plan.products.map((product) => <li key={product}><CheckIcon /> {product}</li>)}</ul>
+            <button className="button button-primary plan-button" type="button" disabled={user.plan === plan.code || plan.is_downgrade || loadingPlan !== null} onClick={() => void choosePlan(plan.code)}>
+              {user.plan === plan.code ? "Your current plan" : plan.is_downgrade ? "Downgrade unavailable" : loadingPlan === plan.code ? "Opening checkout…" : `Choose ${plan.display_name}`}
+            </button>
+          </article>
+        ))}
       </div>
 
       <section className="billing-note">
         <span className="service-icon service-icon--blue"><VoiceIcon /></span>
         <div>
           <h2>Need help with billing?</h2>
-          <p>We do not expose payment details or subscription administration in this dashboard. Billing changes continue through our secure checkout provider.</p>
+          <p>Contact support for billing changes or questions about your subscription. Payments are handled through our secure checkout provider.</p>
         </div>
         <Link className="button button-secondary" href="mailto:hello@gathos.com">Contact support</Link>
       </section>
