@@ -12,8 +12,13 @@ type LoginPageProps = { searchParams: Promise<{ error?: string; logged_out?: str
 
 const AUTH_ERRORS: Record<string, string> = {
   auth_failed: "Sign-in could not be completed. Please try again.",
+  auth_not_configured: "Sign-in is temporarily unavailable. Please contact support.",
+  access_denied: "Sign-in was cancelled or access was denied.",
+  account_conflict: "This email is already linked to a different sign-in identity. Please contact support.",
+  account_inactive: "This account is inactive. Please contact support.",
   db_error: "Your account could not be loaded. Please try again in a moment.",
   disposable_email: "Please use a permanent email address for your Gathos account.",
+  invalid_state: "Your sign-in request expired or could not be verified. Please start again.",
   no_code: "The sign-in response was incomplete. Please start again.",
 };
 
@@ -29,16 +34,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <div className="login-mobile-brand"><span aria-hidden="true" className="brand-mark">G</span><strong className="brand-wordmark">Gathos</strong></div>
           <p className="eyebrow">Welcome back</p>
           <h1>Sign in to your dashboard</h1>
-          <p className="login-description">Continue with the account you use for Gathos. Your session is stored in a secure HTTP-only cookie.</p>
+          <p className="login-description">Sign in with your Gathos email and password, or continue through WorkOS for social login and organization SSO.</p>
           {parameters.logged_out === "1" ? <div className="inline-notice inline-notice--success"><CheckIcon /> You have been signed out.</div> : null}
           {error ? <div className="inline-notice inline-notice--danger" role="alert">{error}</div> : null}
           <LoginForm />
           <div className="login-divider"><span>or</span></div>
-          <Link className="google-button" href="/api/auth/google" prefetch={false}>
-            <span className="google-mark" aria-hidden="true">G</span>
-            Continue with Google
+          <Link className="workos-button" href="/api/auth/login" prefetch={false}>
+            <span className="workos-mark" aria-hidden="true">G</span>
+            Continue with WorkOS
           </Link>
-          <div className="login-security"><span className="status-dot" /><p><strong>Protected by Gathos authentication</strong><small>Your signed-in session stays in a secure HTTP-only cookie.</small></p></div>
+          <div className="login-security"><span className="status-dot" /><p><strong>Secure Gathos authentication</strong><small>Both sign-in methods create the same secure HTTP-only session.</small></p></div>
           <p className="login-legal">By continuing, you agree to the Gathos <a href="https://gathos.com/legal?tab=terms">Terms</a> and <a href="https://gathos.com/legal?tab=privacy">Privacy Policy</a>.</p>
         </div>
         <Link className="back-to-site" href="https://gathos.com"><ArrowLeftIcon size={14} /> Back to gathos.com</Link>

@@ -3617,7 +3617,8 @@ textarea::placeholder {
   width: 100%;
 }
 
-.google-button {
+.google-button,
+.workos-button {
   align-items: center;
   background: #1b2030;
   border: 1px solid #1b2030;
@@ -3634,12 +3635,14 @@ textarea::placeholder {
   width: 100%;
 }
 
-.google-button:hover {
+.google-button:hover,
+.workos-button:hover {
   background: #262c3e;
   transform: translateY(-1px);
 }
 
-.google-mark {
+.google-mark,
+.workos-mark {
   align-items: center;
   background: #fff;
   border-radius: 50%;
@@ -5566,7 +5569,8 @@ pre,
   transform: none;
 }
 
-.google-button {
+.google-button,
+.workos-button {
   background: var(--white);
   border-color: var(--border-strong);
   border-radius: 8px;
@@ -5574,7 +5578,8 @@ pre,
   color: var(--ink);
 }
 
-.google-button:hover {
+.google-button:hover,
+.workos-button:hover {
   background: #faf6ee;
   border-color: var(--accent-dark);
 }

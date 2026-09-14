@@ -16,7 +16,7 @@ For UI work without a running backend, set `DASHBOARD_DEMO_MODE=true` in `.env.l
 
 ## Production configuration
 
-Set the dashboard's server-only `BACKEND_URL` to the FastAPI origin. On the FastAPI backend, set `DASHBOARD_URL=https://dashboard.gathos.com` so OAuth and checkout returns land in this app. The dashboard does not call or require the Express server.
+Set the dashboard's server-only `BACKEND_URL=https://api.gathos.com`. On the FastAPI backend, set `DASHBOARD_URL=https://dashboard.gathos.com`, `BACKEND_URL=https://api.gathos.com`, `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `WORKOS_REDIRECT_URI=https://api.gathos.com/auth/callback`. Register that exact HTTPS redirect URI in the WorkOS dashboard. AuthKit provides social login and configured SSO alongside the existing Gathos email/password fallback; both flows issue the same Gathos session cookie.
 
 ## Security boundary
 
