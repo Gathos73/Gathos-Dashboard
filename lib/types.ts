@@ -47,7 +47,7 @@ export type DashboardUser = {
   name: string;
   plan: Plan;
   priority_support?: boolean;
-  tier_override?: string | null;
+  is_superuser?: boolean;
   trial?: TrialUsage | null;
   userId: string;
 };

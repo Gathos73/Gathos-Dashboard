@@ -15,7 +15,7 @@ export const DEMO_USER: DashboardUser = {
   is_comped: false,
   name: "Maya Chen",
   plan: "pro",
-  tier_override: null,
+  is_superuser: false,
   trial: null,
   userId: "demo-user",
 };
