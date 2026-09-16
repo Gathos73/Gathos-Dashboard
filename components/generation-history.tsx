@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DownloadOutput } from "./download-output";
 import { PageHeader } from "./page-header";
 import { clearRequestCache } from "@/lib/request-cache";
@@ -13,7 +13,7 @@ export function GenerationStatus({ status }: { status: string }) {
   return <span className={`status-badge ${tone}`}>{humanize(status)}</span>;
 }
 
-export function GenerationHistory() {
+export function GenerationHistory({ initialData }: { initialData?: GenerationList | null }) {
   const [status, setStatus] = useState("");
   const [product, setProduct] = useState("");
   const [filterProduct, setFilterProduct] = useState("");
@@ -21,12 +21,16 @@ export function GenerationHistory() {
   const [refresh, setRefresh] = useState(0);
   const path = `/api/generations?${new URLSearchParams({ limit: "25", offset: String(offset), ...(status ? { status } : {}), ...(filterProduct ? { product: filterProduct } : {}) })}`;
   const requestKey = `${path}:${refresh}`;
-  const [result, setResult] = useState<{ key: string; data?: GenerationList; error?: string }>({ key: "" });
+  const initialRequestKey = useRef(requestKey).current;
+  const hasInitialData = Boolean(initialData && requestKey === initialRequestKey);
+  const [result, setResult] = useState<{ key: string; data?: GenerationList; error?: string }>(
+    initialData ? { key: requestKey, data: initialData } : { key: "" },
+  );
   const current = result.key === requestKey ? result : null;
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let firstLoad = true;
+    let firstLoad = !hasInitialData;
     async function load() {
       try {
         const data = await dashboardRequest<GenerationList>(path, { signal: controller.signal, cache: firstLoad ? "default" : "reload" });
@@ -39,9 +43,10 @@ export function GenerationHistory() {
         setResult((prior) => ({ key: requestKey, data: prior.key === requestKey ? prior.data : undefined, error: cause instanceof Error ? cause.message : "Unable to load generations." }));
       }
     }
-    void load();
+    if (hasInitialData) timer = setTimeout(load, 10_000);
+    else void load();
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [path, requestKey]);
+  }, [path, requestKey, hasInitialData]);
   return <div className="generation-page">
     <PageHeader title="Generations" eyebrow="Your work" description="Track requests, inspect errors, and retrieve your generated files. Status refreshes automatically."
       actions={<button className="button button-secondary" type="button" onClick={() => { clearRequestCache(); setRefresh((value) => value + 1); }}>Refresh</button>} />

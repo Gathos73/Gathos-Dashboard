@@ -19,6 +19,23 @@ export function isDemoMode(): boolean {
   return process.env.NODE_ENV === "development" && process.env.DASHBOARD_DEMO_MODE === "true";
 }
 
+export async function getServerDashboardData<T>(path: string): Promise<T | null> {
+  if (isDemoMode()) return null;
+  const token = (await cookies()).get("gathos_session")?.value;
+  if (!token) return null;
+  try {
+    const response = await fetch(`${getBackendUrl()}/api/${path.replace(/^\/+/, "")}`, {
+      cache: "no-store",
+      headers: { cookie: `gathos_session=${encodeURIComponent(token)}` },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) return null;
+    return await response.json() as T;
+  } catch {
+    return null;
+  }
+}
+
 export const getCurrentUser = cache(async (): Promise<DashboardUser | null> => {
   if (isDemoMode()) return DEMO_USER;
 

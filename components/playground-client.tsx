@@ -143,9 +143,9 @@ function stateLabel(state: RunState, job: PlaygroundJob | null): string {
   return "Ready to run";
 }
 
-export function PlaygroundClient({ demo, user }: { demo: boolean; user: DashboardUser }) {
+export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; user: DashboardUser; initialKeys?: ApiKeyRecord[] }) {
   const [service, setService] = useState<Service>("image");
-  const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : []);
+  const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : (initialKeys ?? []));
   const [selectedKey, setSelectedKey] = useState("");
   const [prompt, setPrompt] = useState("A quiet, future-facing studio filled with warm morning light");
   const [sourceImage, setSourceImage] = useState("");
@@ -171,7 +171,7 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
   const hasVoiceAccess = canUseProduct(user, "tts");
 
   useEffect(() => {
-    if (demo) return;
+    if (demo || initialKeys !== undefined) return;
     const controller = new AbortController();
     dashboardRequest<{ keys?: ApiKeyRecord[] }>("/api/auth/keys", { signal: controller.signal })
       .then((payload) => setKeys((payload.keys || []).filter((key) => key.is_active)))
@@ -180,7 +180,7 @@ export function PlaygroundClient({ demo, user }: { demo: boolean; user: Dashboar
         setError(requestError instanceof Error ? requestError.message : "API keys could not be loaded.");
       });
     return () => controller.abort();
-  }, [demo]);
+  }, [demo, initialKeys]);
 
   useEffect(() => {
     if (demo || !hasVoiceAccess) return;

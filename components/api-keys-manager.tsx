@@ -90,10 +90,10 @@ function normalizeKey(key: ApiKeyRecord): ApiKeyRecord {
   };
 }
 
-export function ApiKeysManager({ demo, user }: { demo: boolean; user: DashboardUser }) {
-  const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : []);
+export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; user: DashboardUser; initialKeys?: ApiKeyRecord[] }) {
+  const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : (initialKeys ?? []));
   const [expandedService, setExpandedService] = useState<ApiKeyType | null>(null);
-  const [loading, setLoading] = useState(!demo);
+  const [loading, setLoading] = useState(!demo && initialKeys === undefined);
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [name, setName] = useState("");
@@ -106,7 +106,7 @@ export function ApiKeysManager({ demo, user }: { demo: boolean; user: DashboardU
   const createDialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (demo) return;
+    if (demo || initialKeys !== undefined) return;
     const controller = new AbortController();
     dashboardRequest<KeysResponse>("/api/auth/keys", { signal: controller.signal })
       .then((payload) => setKeys((payload.keys || []).map(normalizeKey)))
@@ -116,7 +116,7 @@ export function ApiKeysManager({ demo, user }: { demo: boolean; user: DashboardU
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [demo]);
+  }, [demo, initialKeys]);
 
   useEffect(() => {
     if (!formOpen) return;
