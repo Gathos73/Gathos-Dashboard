@@ -36,11 +36,12 @@ local HMAC verification and expiry checks of the existing cookie (no JWT migrati
 Never expose it through `NEXT_PUBLIC_`: this shared secret also permits signing.
 Without it, account reads retain backend verification and are not cached.
 
-Verified sessions reuse `/api/auth/me` account display data for up to 30 seconds,
-keyed by a hash of the complete session token in bounded process memory. Missing
-or invalid cookies do not call the backend. The shell uses the server-provided user
-and no longer makes a second mount-time account request. Protected backend APIs
-remain responsible for authorization; cached account data is only for rendering.
+The protected layout reads shell identity directly from the locally verified signed session and
+does not call `/api/auth/me`. Pages that need fresh plan, billing, or profile fields reuse
+`/api/auth/me` account data for up to 30 seconds, keyed by a hash of the complete session token in
+bounded process memory. Missing or invalid cookies do not call the backend. Protected backend APIs
+remain responsible for current authorization; session and cached account data are only for
+rendering.
 
 Mutations and explicit `/api/auth/me` reads invalidate this process's account cache
 before and after forwarding. Subscription confirmation keeps its live polling.

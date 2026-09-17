@@ -1,7 +1,7 @@
-import { isDemoMode, requireUser } from "@/lib/server-user";
+import { isDemoMode, requireSessionUser } from "@/lib/server-user";
 import { PrioritySupportClient } from "@/components/priority-support-client";
 
 export default async function PrioritySupportPage() {
-  const user = await requireUser();
+  const user = await requireSessionUser();
   return <PrioritySupportClient demo={isDemoMode()} user={user} />;
 }

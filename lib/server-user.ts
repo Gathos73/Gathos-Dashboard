@@ -67,8 +67,34 @@ export const getCurrentUser = cache(async (): Promise<DashboardUser | null> => {
   }, Boolean(identity));
 });
 
+export const getSessionUser = cache(async (): Promise<DashboardUser | null> => {
+  if (isDemoMode()) return DEMO_USER;
+
+  const token = (await cookies()).get("gathos_session")?.value;
+  if (!token) return null;
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return getCurrentUser();
+  const identity = verifySession(token, secret);
+  if (!identity) return null;
+  return {
+    userId: identity.userId,
+    email: identity.email,
+    name: identity.name?.trim() || identity.email.split("@")[0] || "Gathos user",
+    avatar: identity.avatar,
+    plan: identity.plan || "free",
+    priority_support: Boolean(identity.priority_support),
+    is_superuser: Boolean(identity.is_superuser),
+  };
+});
+
 export async function requireUser(): Promise<DashboardUser> {
   const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  return user;
+}
+
+export async function requireSessionUser(): Promise<DashboardUser> {
+  const user = await getSessionUser();
   if (!user) redirect("/login");
   return user;
 }

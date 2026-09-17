@@ -20,7 +20,10 @@ test('reuses verified accounts, checks expiry before cache, and supports backend
   });
   let now = 150_000;
   t.mock.method(Date, 'now', () => now);
-  const data = JSON.stringify({ userId: 'one', email: 'one@example.com', iat: 100, exp: 160 });
+  const data = JSON.stringify({
+    userId: 'one', email: 'one@example.com', name: 'One', plan: 'pro',
+    priority_support: true, is_superuser: false, iat: 100, exp: 160,
+  });
   const valid = Buffer.from(JSON.stringify({ data, signature: createHmac('sha256', 'test-secret').update(data).digest('hex') })).toString('base64url');
   let token;
   let calls = 0;
@@ -39,7 +42,7 @@ test('reuses verified accounts, checks expiry before cache, and supports backend
   new Function('require', 'module', 'exports', compiled)(id => {
     assert.ok(id in dependencies, id); return dependencies[id];
   }, loaded, loaded.exports);
-  const { getCurrentUser } = loaded.exports;
+  const { getCurrentUser, getSessionUser } = loaded.exports;
   assert.equal(await getCurrentUser(), null);
   token = 'invalid';
   assert.equal(await getCurrentUser(), null);
@@ -48,8 +51,14 @@ test('reuses verified accounts, checks expiry before cache, and supports backend
   assert.equal((await getCurrentUser()).userId, 'one');
   assert.equal((await getCurrentUser()).userId, 'one');
   assert.equal(calls, 1);
+  assert.deepEqual(await getSessionUser(), {
+    userId: 'one', email: 'one@example.com', name: 'One', avatar: undefined,
+    plan: 'pro', priority_support: true, is_superuser: false,
+  });
+  assert.equal(calls, 1);
   now = 160_000;
   assert.equal(await getCurrentUser(), null);
+  assert.equal(await getSessionUser(), null);
   assert.equal(calls, 1);
   delete process.env.SESSION_SECRET;
   await getCurrentUser();
