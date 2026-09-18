@@ -51,16 +51,18 @@ function truncate(text: string, max = 80): string {
 
 export function PrioritySupportClient({
   demo,
+  initialTickets,
   user,
 }: {
   demo: boolean;
+  initialTickets?: PrioritySupportTicket[];
   user: DashboardUser;
 }) {
   const hasPrioritySupport = Boolean(user.priority_support || user.plan_details?.priority_support);
 
   // Tickets state
-  const [tickets, setTickets] = useState<PrioritySupportTicket[]>([]);
-  const [loadingTickets, setLoadingTickets] = useState(true);
+  const [tickets, setTickets] = useState<PrioritySupportTicket[]>(initialTickets ?? []);
+  const [loadingTickets, setLoadingTickets] = useState(initialTickets === undefined);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [refreshIndex, setRefreshIndex] = useState(0);
 
@@ -84,6 +86,7 @@ export function PrioritySupportClient({
   // Fetch tickets and ignore responses from superseded requests.
   useEffect(() => {
     if (!hasPrioritySupport) return;
+    if (initialTickets !== undefined && refreshIndex === 0) return;
     const controller = new AbortController();
     dashboardRequest<{ tickets: PrioritySupportTicket[] }>(
       "/api/priority-support",
@@ -101,7 +104,7 @@ export function PrioritySupportClient({
         if (!controller.signal.aborted) setLoadingTickets(false);
       });
     return () => controller.abort();
-  }, [hasPrioritySupport, refreshIndex]);
+  }, [hasPrioritySupport, initialTickets, refreshIndex]);
 
   // Load API keys when opening modal
   useEffect(() => {

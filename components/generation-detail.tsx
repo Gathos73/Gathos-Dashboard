@@ -10,10 +10,12 @@ import { clearRequestCache } from "@/lib/request-cache";
 import { dashboardRequest } from "@/lib/client-api";
 import { generationDate, humanize, isPending, type GenerationDetail as Detail } from "@/lib/generations";
 
-export function GenerationDetail({ id }: { id: string }) {
+export function GenerationDetail({ id, initialData }: { id: string; initialData?: Detail | null }) {
   const [revision, setRevision] = useState(0);
   const requestKey = `${id}:${revision}`;
-  const [result, setResult] = useState<{ key: string; data?: Detail; error?: string }>({ key: "" });
+  const [result, setResult] = useState<{ key: string; data?: Detail; error?: string }>(
+    initialData ? { key: requestKey, data: initialData } : { key: "" },
+  );
   const [retrying, setRetrying] = useState(false);
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
@@ -22,7 +24,7 @@ export function GenerationDetail({ id }: { id: string }) {
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let firstLoad = true;
+    let firstLoad = !initialData;
     async function load() {
       try {
         const data = await dashboardRequest<Detail>(`/api/generations/${encodeURIComponent(id)}`, { signal: controller.signal, cache: firstLoad ? "default" : "reload" });
@@ -34,9 +36,13 @@ export function GenerationDetail({ id }: { id: string }) {
         if (!controller.signal.aborted) setResult({ key: requestKey, error: cause instanceof Error ? cause.message : "Unable to load this generation." });
       }
     }
-    void load();
+    if (initialData && revision === 0) {
+      if (isPending(initialData.status)) timer = setTimeout(load, 5_000);
+    } else {
+      void load();
+    }
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [id, requestKey]);
+  }, [id, initialData, requestKey, revision]);
   async function retry() {
     if (!row?.can_retry || retrying) return;
     setRetrying(true); setActionError(""); setNotice("");

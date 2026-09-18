@@ -22,6 +22,7 @@ import {
   type IconProps,
 } from "@/components/icons";
 import type { DashboardUser, Plan } from "@/lib/types";
+import { RouteNavigationFeedback } from "@/components/route-navigation-feedback";
 
 type NavigationItem = {
   description: string;
@@ -205,11 +206,12 @@ export function DashboardShell({ children, user }: { children: ReactNode; demo: 
   function openMatch(item: NavigationItem) {
     setQuery("");
     setMenuOpen(false);
+    router.prefetch(item.href);
     router.push(item.href);
   }
 
   return (
-    <div className={`dashboard-layout${sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}>
+    <RouteNavigationFeedback className={`dashboard-layout${sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}>
       <a className="skip-link" href="#dashboard-main">
         Skip to main content
       </a>
@@ -379,6 +381,8 @@ export function DashboardShell({ children, user }: { children: ReactNode; demo: 
                       return (
                         <button
                           className="dashboard-search-result"
+                          data-navigation-href={item.href}
+                          data-navigation-label={item.label}
                           key={item.href}
                           onClick={() => openMatch(item)}
                           type="button"
@@ -408,6 +412,6 @@ export function DashboardShell({ children, user }: { children: ReactNode; demo: 
         </header>
         <main className="dashboard-main" id="dashboard-main" tabIndex={-1}>{children}</main>
       </div>
-    </div>
+    </RouteNavigationFeedback>
   );
 }

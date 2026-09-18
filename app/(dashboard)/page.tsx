@@ -1,5 +1,6 @@
 import { AnalyticsDashboard } from "@/components/analytics-dashboard";
-import { isDemoMode } from "@/lib/server-user";
+import { getServerDashboardData, isDemoMode } from "@/lib/server-user";
+import type { UsageApiPayload } from "@/lib/types";
 import { redirect } from "next/navigation";
 
 type AnalyticsPageProps = {
@@ -22,5 +23,8 @@ export default async function AnalyticsPage({ searchParams }: AnalyticsPageProps
     if (parameters.creator_upgrade) nextParameters.set("creator_upgrade", parameters.creator_upgrade);
     redirect(`/subscription${nextParameters.size ? `?${nextParameters.toString()}` : ""}`);
   }
-  return <AnalyticsDashboard demo={isDemoMode()} />;
+  const initialUsage = await getServerDashboardData<UsageApiPayload>(
+    "auth/usage?time_window=current_window&tz_offset=0",
+  );
+  return <AnalyticsDashboard demo={isDemoMode()} initialUsage={initialUsage} />;
 }

@@ -180,10 +180,10 @@ function validAudioFile(file: File): boolean {
   return /\.(mp3|wav|m4a|ogg|webm)$/i.test(file.name) || ALLOWED_AUDIO_MIME_TYPES.has(file.type);
 }
 
-export function VoicesManager({ demo }: { demo: boolean }) {
+export function VoicesManager({ demo, initialVoices }: { demo: boolean; initialVoices?: VoiceSample[] }) {
   const [tab, setTab] = useState<"custom" | "presets">("custom");
-  const [voices, setVoices] = useState<VoiceSample[]>(demo ? DEMO_VOICES : []);
-  const [loading, setLoading] = useState(!demo);
+  const [voices, setVoices] = useState<VoiceSample[]>(demo ? DEMO_VOICES : (initialVoices ?? []));
+  const [loading, setLoading] = useState(!demo && initialVoices === undefined);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [mode, setMode] = useState<"upload" | "record">("upload");
@@ -200,7 +200,7 @@ export function VoicesManager({ demo }: { demo: boolean }) {
   const audio = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (demo) return;
+    if (demo || initialVoices !== undefined) return;
     const controller = new AbortController();
     dashboardRequest<{ voices?: VoiceSample[] }>("/api/voices", { signal: controller.signal })
       .then((payload) => setVoices(payload.voices || []))
@@ -210,7 +210,7 @@ export function VoicesManager({ demo }: { demo: boolean }) {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [demo]);
+  }, [demo, initialVoices]);
 
   useEffect(() => () => audio.current?.pause(), []);
 

@@ -212,7 +212,13 @@ function AnalyticsSkeleton() {
   );
 }
 
-export function AnalyticsDashboard({ demo }: { demo: boolean }) {
+export function AnalyticsDashboard({
+  demo,
+  initialUsage,
+}: {
+  demo: boolean;
+  initialUsage?: UsageApiPayload | null;
+}) {
   const [range, setRange] = useState<UsageRange>("current_window");
   const [service, setService] = useState<ServiceFilter>("all");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -221,7 +227,12 @@ export function AnalyticsDashboard({ demo }: { demo: boolean }) {
     error: string;
     requestKey: string;
     range: UsageRange;
-  } | null>(null);
+  } | null>(() => initialUsage ? {
+    data: normalizeUsage(initialUsage),
+    error: "",
+    requestKey: "current_window:0",
+    range: "current_window",
+  } : null);
   const requestKey = `${range}:${refreshKey}`;
   const [quotaSchedule, setQuotaSchedule] = useState<{ seconds: number } | null>(null);
   const [scheduleError, setScheduleError] = useState("");
@@ -240,6 +251,7 @@ export function AnalyticsDashboard({ demo }: { demo: boolean }) {
 
   useEffect(() => {
     if (demo) return;
+    if (requestKey === "current_window:0" && initialUsage) return;
     const controller = new AbortController();
     dashboardRequest<UsageApiPayload>(`/api/auth/usage?time_window=${range}&tz_offset=${new Date().getTimezoneOffset()}`, { signal: controller.signal, cache: "no-store" })
       .then((payload) => {
@@ -255,7 +267,7 @@ export function AnalyticsDashboard({ demo }: { demo: boolean }) {
         }));
       });
     return () => controller.abort();
-  }, [range, demo, requestKey]);
+  }, [range, demo, initialUsage, requestKey]);
 
   useEffect(() => {
     if (demo) return;
