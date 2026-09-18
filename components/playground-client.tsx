@@ -345,7 +345,7 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
         </div>
       </div>
 
-      {error ? <div className="inline-notice inline-notice--danger" role="alert"><WarningIcon /> {error}</div> : null}
+      {error ? <div className="inline-notice inline-notice--danger" role="alert"><WarningIcon /><span style={{ whiteSpace: "pre-line" }}>{error}</span></div> : null}
 
       <div className="playground-layout">
         <section className="panel playground-console">
