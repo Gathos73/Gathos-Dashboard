@@ -239,8 +239,7 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
     return { prompt, width, height };
   }, [generateAudio, imageSize, prompt, service, speed, ttsText, videoStyle, voice, sourceImage, referenceImage]);
 
-  const creatorRequired = service === "video" && !canUseProduct(user, "video");
-  const paidRequired = !canUseProduct(user, service);
+  const productRequired = !canUseProduct(user, service);
 
   function changeService(nextService: Service) {
     pollController.current?.abort();
@@ -287,7 +286,7 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
 
   async function runRequest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!effectiveSelectedKey || creatorRequired || paidRequired || runState === "submitting" || runState === "queued") return;
+    if (!effectiveSelectedKey || productRequired || runState === "submitting" || runState === "queued") return;
     pollController.current?.abort();
     const controller = new AbortController();
     pollController.current = controller;
@@ -363,7 +362,7 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
                   type="button"
                 >
                   <Icon /> {SERVICE_META[item].label}
-                  {item === "video" && !canUseProduct(user, "video") ? <span>Creator</span> : null}
+                  {!canUseProduct(user, item) ? <span>Not included</span> : null}
                 </button>
               );
             })}
@@ -441,10 +440,9 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
 
 
             {!serviceKeys.length ? <div className="inline-notice inline-notice--warning"><WarningIcon /> Create an active {SERVICE_META[service].label.toLowerCase()} key first. <Link href="/api-keys">Open API keys</Link></div> : null}
-            {paidRequired ? <div className="inline-notice inline-notice--warning"><WarningIcon /> Your plan does not include this product. <Link href="/subscription">View plans</Link></div> : null}
-            {creatorRequired ? <div className="inline-notice inline-notice--warning"><WarningIcon /> Video generation is available on the Creator plan. <Link href="/subscription">Upgrade</Link></div> : null}
+            {productRequired ? <div className="inline-notice inline-notice--warning"><WarningIcon /> An active plan that includes this product is required. <Link href="/subscription">View plans</Link></div> : null}
 
-            <button className="button button-primary run-button" disabled={!effectiveSelectedKey || paidRequired || creatorRequired || runState === "submitting" || runState === "queued"} type="submit">
+            <button className="button button-primary run-button" disabled={!effectiveSelectedKey || productRequired || runState === "submitting" || runState === "queued"} type="submit">
               <SparklesIcon /> {runState === "submitting" || runState === "queued" ? "Running request…" : `Run ${SERVICE_META[service].label.toLowerCase()}`}
             </button>
           </form>

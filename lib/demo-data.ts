@@ -15,6 +15,8 @@ export const DEMO_USER: DashboardUser = {
   is_comped: false,
   name: "Maya Chen",
   plan: "pro",
+  access_active: true,
+  product_codes: ["image", "image2image", "tts"],
   is_superuser: false,
   trial: null,
   userId: "demo-user",
