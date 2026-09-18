@@ -5395,7 +5395,7 @@ pre,
 
 .job-progress span,
 .is-indeterminate::after {
-  background: #84e7a5;
+  color: #84e7a5;
 }
 
 .resource-search {
