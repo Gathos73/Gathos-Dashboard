@@ -31,16 +31,18 @@ async function uncachedRequest<T>(url: string, options: RequestInit): Promise<T>
   });
   const text = await response.text();
   let payload: unknown = {};
+  const isHtml = response.headers.get("content-type")?.toLowerCase().includes("text/html")
+    || /^\s*(?:<!doctype\s+html|<html\b)/i.test(text);
   if (text) {
     try {
       payload = JSON.parse(text);
     } catch {
-      payload = { message: text };
+      payload = isHtml ? {} : { message: text };
     }
   }
   if (response.status === 401 || response.status === 403) clearRequestCache();
   if (!response.ok) {
-    const body = payload as {
+    const body = (payload && typeof payload === "object" ? payload : {}) as {
       detail?: string | { message?: string };
       error?: string;
       message?: string;
@@ -48,8 +50,13 @@ async function uncachedRequest<T>(url: string, options: RequestInit): Promise<T>
     };
     const detail = typeof body.detail === "string" ? body.detail : body.detail?.message;
     const retryAfter = body.retry_after_seconds || Number(response.headers.get("retry-after")) || undefined;
+    const submitting = (options.method ?? "GET").toUpperCase() === "POST"
+      && url.startsWith("/api/playground/");
+    const gatewayMessage = response.status >= 500
+      ? `The server could not complete the request (HTTP ${response.status}).${submitting ? " Your request may have been received. Check Generations before submitting again." : " Please try again shortly."}`
+      : `Request failed with status ${response.status}`;
     throw new DashboardApiError(
-      body.message || detail || body.error || `Request failed with status ${response.status}`,
+      body.message || detail || body.error || gatewayMessage,
       response.status,
       retryAfter,
     );

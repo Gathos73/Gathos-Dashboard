@@ -2765,6 +2765,10 @@ textarea::placeholder {
   padding-left: 0;
 }
 
+.resource-search input:focus-visible {
+  outline: none;
+}
+
 .docs-layout {
   align-items: start;
   display: grid;
@@ -5399,7 +5403,6 @@ pre,
 }
 
 .resource-search {
-  background: #faf6ee;
   border-color: var(--border);
 }
 

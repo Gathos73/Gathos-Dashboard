@@ -9,6 +9,42 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
   .replaceAll('"./request-cache"', JSON.stringify(new URL('../lib/request-cache.ts', import.meta.url).href));
 const api = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 
+test('Cloudflare HTML errors produce actionable messages without retrying submissions', async (t) => {
+  const html = '<!DOCTYPE html><html><head><title>gathos.live | 502: Bad gateway</title></head><body>Host Error</body></html>';
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    calls += 1;
+    return new Response(html, { status: 502, headers: { 'content-type': 'text/html' } });
+  });
+  await assert.rejects(api.dashboardRequest('/api/playground/image', { method: 'POST' }), (error) => {
+    assert.ok(error instanceof api.DashboardApiError);
+    assert.equal(error.status, 502);
+    assert.match(error.message, /HTTP 502/);
+    assert.match(error.message, /Check Generations before submitting again/);
+    assert.doesNotMatch(error.message, /<html|<!DOCTYPE/);
+    return true;
+  });
+  assert.equal(calls, 1);
+});
+
+test('HTML detection works without content type and empty gateway errors stay readable', async (t) => {
+  for (const body of ['<!DOCTYPE html><html>Bad gateway</html>', '']) {
+    t.mock.method(globalThis, 'fetch', async () => new Response(body, { status: 504 }));
+    await assert.rejects(api.dashboardRequest('/api/playground/tts', { method: 'POST' }), /HTTP 504.*Check Generations/);
+  }
+});
+
+test('JSON errors retain their message and retry metadata, including null error bodies', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ detail: 'Queue full', retry_after_seconds: 30 }, { status: 503 }));
+  await assert.rejects(api.dashboardRequest('/api/playground/video', { method: 'POST' }), (error) => {
+    assert.equal(error.message, 'Queue full');
+    assert.equal(error.retryAfterSeconds, 30);
+    return true;
+  });
+  t.mock.method(globalThis, 'fetch', async () => Response.json(null, { status: 502 }));
+  await assert.rejects(api.dashboardRequest('/api/playground/video', { method: 'POST' }), api.DashboardApiError);
+});
+
 test('API reads cache across navigation and mutations invalidate them', async (t) => {
   globalThis.window = {};
   t.after(() => { delete globalThis.window; clearRequestCache(); });

@@ -198,6 +198,7 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
   const token = request.cookies.get("gathos_session")?.value;
   const refreshAccount = !SAFE_METHODS.has(request.method) || path.join("/") === "auth/me";
   if (token && refreshAccount) accountCache.invalidate(token);
+  const startedAt = Date.now();
   try {
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(130_000)]);
     let upstream = await fetch(upstreamUrl, {
@@ -208,6 +209,16 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
       redirect: "manual",
       signal,
     });
+    if (upstream.status >= 500) {
+      console.error("[dashboard-api] upstream failure", {
+        method: request.method,
+        route: path.join("/"),
+        status: upstream.status,
+        elapsedMs: Date.now() - startedAt,
+        rayId: request.headers.get("cf-ray"),
+        upstreamRayId: upstream.headers.get("cf-ray"),
+      });
+    }
     if (token && (upstream.status === 401 || upstream.status === 403)) accountCache.invalidate(token);
     if (path[0] === "assets" && path[2] === "download" && request.method === "GET") {
       upstream = await resolveAssetDownload(upstream, signal);
@@ -218,6 +229,16 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
       statusText: upstream.statusText,
     });
   } catch (error) {
+    // Do not log request bodies, cookies, query strings, or raw fetch errors.
+    const cause = error instanceof Error ? error.cause as { code?: unknown } | undefined : undefined;
+    console.error("[dashboard-api] forwarding failure", {
+      method: request.method,
+      route: path.join("/"),
+      elapsedMs: Date.now() - startedAt,
+      rayId: request.headers.get("cf-ray"),
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      causeCode: typeof cause?.code === "string" ? cause.code : undefined,
+    });
     if (error instanceof Error && error.name === "TimeoutError") {
       return Response.json(
         { error: "backend_timeout", message: "The dashboard API took too long to respond." },
