@@ -16,6 +16,11 @@ export const REQUEST_EXAMPLES = {
     path: "image-generation", key: "GATHOS_IMAGE_KEY",
     payload: { prompt: "Editorial product photo, soft window light", width: 1024, height: 1024, guidance_scale: 1.0, steps: 8, use_prompt_enhancer: true, seed: -1 },
   },
+  image2image: {
+    path: "image2image", key: "GATHOS_IMAGE2IMAGE_KEY",
+    payload: { prompt: "Turn the scene into a watercolor illustration", width: 1024, height: 1024 },
+    upload: { field: "image1", filename: "reference.png", contentType: "image/png" },
+  },
   tts: {
     path: "tts", key: "GATHOS_TTS_KEY",
     payload: { text: "Welcome to the demo.", voice: "koko", speed: 1.0, language: "en" },

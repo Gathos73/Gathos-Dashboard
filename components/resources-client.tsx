@@ -18,12 +18,13 @@ import { PageHeader } from "@/components/page-header";
 import { API_BASE, EXAMPLE_LANGUAGES, REQUEST_EXAMPLES, requestExample, type ExampleLanguage } from "@/lib/resource-examples";
 
 type ResourceTab = "docs" | "skills";
-type DocSection = "quickstart" | "authentication" | "image" | "tts" | "video" | "polling";
+type DocSection = "quickstart" | "authentication" | "image" | "image2image" | "tts" | "video" | "polling";
 
 const DOC_SECTIONS: Array<{ icon: typeof BookIcon; id: DocSection; label: string; keywords: string }> = [
   { icon: SparklesIcon, id: "quickstart", label: "Quickstart", keywords: "start install first request overview" },
   { icon: TerminalIcon, id: "authentication", label: "Authentication", keywords: "bearer api key authorization security" },
   { icon: ImageIcon, id: "image", label: "Image generation", keywords: "image prompt width height base64" },
+  { icon: ImageIcon, id: "image2image", label: "Image to image", keywords: "edit source reference local upload file klein" },
   { icon: VoiceIcon, id: "tts", label: "Text to speech", keywords: "tts voice clone speech audio language" },
   { icon: VideoIcon, id: "video", label: "Video generation", keywords: "video creator audio style mode" },
   { icon: ArrowUpRightIcon, id: "polling", label: "Polling jobs", keywords: "poll async status queue eta progress" },
@@ -126,6 +127,7 @@ function DocArticle({ section }: { section: DocSection }) {
       <>
         <div className="docs-lead"><p className="panel-kicker">Security</p><h2>Bearer authentication</h2><p>Use the secret returned when you create a key, with authorization for the requested service. Copy the secret at creation; it cannot be recovered later.</p></div>
         <CodeBlock title="Bash · environment variables">{`export GATHOS_IMAGE_KEY='img_live_...'
+export GATHOS_IMAGE2IMAGE_KEY='YOUR_IMAGE_TO_IMAGE_KEY'
 export GATHOS_TTS_KEY='tts_live_...'
 export GATHOS_VIDEO_KEY='vid_live_...'
 export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
@@ -148,6 +150,28 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
         ]} />
         <Endpoint description="Discover supported image resolutions." method="GET" path="/image-generation/resolutions" />
         <RequestExamples example="image" />
+      </>
+    ),
+    image2image: (
+      <>
+        <div className="docs-lead"><p className="panel-kicker">Image editing API</p><h2>Edit a local image</h2><p>Attach your source image as multipart <code>image1</code> and, optionally, a second reference as <code>image2</code>. Gathos uploads the files to R2 and sends signed HTTP(S) URLs to the generation server. You do not need R2 credentials.</p></div>
+        <Endpoint description="Submit an image-to-image job using a key authorized for image-to-image." method="POST" path="/image2image" />
+        <ParameterTable rows={[
+          ["prompt", "string", "Yes", "Instructions describing the edit."],
+          ["image1", "file", "Source required", "Multipart source image. PNG, JPEG, or WebP; maximum 10 MB."],
+          ["image2", "file", "No", "Optional second reference image; same formats and size limit."],
+          ["image1_path", "string", "Alternative", "Public/signed HTTP(S) source URL. A path on your computer will not work; attach image1 instead."],
+          ["image2_path", "string", "Alternative", "Public/signed HTTP(S) URL for the second reference."],
+          ["image1_base64 / image2_base64", "string", "Alternative", "Base64 or image data URL. Gathos uploads these to R2 as well. Use one source format per image."],
+          ["width / height", "integer", "No", "32–4096 pixels. Defaults: width 896, height 1152."],
+          ["steps", "integer", "No", "1–99. Default: 8. num_steps is an alias."],
+          ["guidance", "number", "No", "1–10. Default: 1.5."],
+          ["seed", "integer", "No", "Default: -1 for random."],
+        ]} />
+        <Endpoint description="Discover current editing defaults and supported options." method="GET" path="/image2image/config" />
+        <p>Export <code>GATHOS_IMAGE2IMAGE_KEY</code> and place <code>reference.png</code> in the working directory. Let your HTTP client set the multipart boundary. Reuse an <code>Idempotency-Key</code> header for retries of the same request.</p>
+        <RequestExamples example="image2image" />
+        <Endpoint description="Poll with the same key. Completed results may contain an image URL or base64 image." method="GET" path="/image2image/jobs/{job_id}" />
       </>
     ),
     tts: (
@@ -202,7 +226,7 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
         <p>Choose your own <code>run_id</code> and <code>scene_id</code> for each new scene. Reuse the same pair and payload when retrying a submission to avoid duplicate jobs.</p>
         <RequestExamples example="video" />
         <h3>Image to video</h3>
-        <p>Place <code>reference.png</code> in the working directory. To also supply audio, use <code>tia2v</code> and add an <code>audio</code> file or <code>audio_url</code>.</p>
+        <p>Place <code>reference.png</code> in the working directory. Gathos uploads the image to R2 and passes a signed URL to the generation server; no R2 credentials are needed. To also supply audio, use <code>tia2v</code> and add an <code>audio</code> file or <code>audio_url</code>.</p>
         <RequestExamples example="conditionedVideo" />
       </>
     ),
@@ -211,6 +235,7 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
         <div className="docs-lead"><p className="panel-kicker">Async jobs</p><h2>Poll a submitted job</h2><p>Use the returned <code>job_id</code> and the same service key. Each service example includes a polling loop with a three-second interval and a 30-minute deadline. Timing out locally does not cancel the job; keep its ID to resume polling.</p></div>
         <div className="endpoint-stack">
           <Endpoint description="Image job status and result." method="GET" path="/image-generation/jobs/{job_id}" />
+          <Endpoint description="Image editing job status and result." method="GET" path="/image2image/jobs/{job_id}" />
           <Endpoint description="Speech job status and result." method="GET" path="/tts/jobs/{job_id}" />
           <Endpoint description="Video job status and signed output URL." method="GET" path="/video-generation/jobs/{job_id}" />
         </div>

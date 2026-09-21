@@ -143,6 +143,28 @@ function stateLabel(state: RunState, job: PlaygroundJob | null): string {
   return "Ready to run";
 }
 
+function ReferenceImageInput({ id, label, url, file, required = false, onUrlChange, onFileChange }: {
+  id: string; label: string; url: string; file: File | null; required?: boolean;
+  onUrlChange: (value: string) => void; onFileChange: (value: File | null) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return <div>
+    <label className="field-label" htmlFor={`${id}-file`}>{label}</label>
+    <input ref={input} id={`${id}-file`} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => {
+      const selected = event.target.files?.[0] || null;
+      onFileChange(selected);
+      if (selected) onUrlChange("");
+    }} />
+    {file ? <p className="muted">{file.name} <button type="button" className="text-link" onClick={() => {
+      onFileChange(null);
+      if (input.current) input.current.value = "";
+    }}>Remove</button></p> : null}
+    <label className="field-label" htmlFor={`${id}-url`}>Or use an image URL</label>
+    <input id={`${id}-url`} type="url" required={required && !file} disabled={Boolean(file)} placeholder="https://example.com/reference.png" value={url} onChange={(event) => onUrlChange(event.target.value)} />
+    <small className="muted">PNG, JPEG, or WebP. Up to 10 MB per image.</small>
+  </div>;
+}
+
 export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; user: DashboardUser; initialKeys?: ApiKeyRecord[] }) {
   const [service, setService] = useState<Service>("image");
   const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : (initialKeys ?? []));
@@ -150,6 +172,10 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
   const [prompt, setPrompt] = useState("A quiet, future-facing studio filled with warm morning light");
   const [sourceImage, setSourceImage] = useState("");
   const [referenceImage, setReferenceImage] = useState("");
+  const [sourceImageFile, setSourceImageFile] = useState<File | null>(null);
+  const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
+  const [videoImage, setVideoImage] = useState("");
+  const [videoImageFile, setVideoImageFile] = useState<File | null>(null);
   const [imageWidth, setImageWidth] = useState("1024");
   const [imageHeight, setImageHeight] = useState("1024");
   const imageSize = `${imageWidth}x${imageHeight}`;
@@ -233,17 +259,20 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
 
   const requestPreview = useMemo(() => {
     if (service === "tts") return { text: ttsText, voice, speed };
-    if (service === "video") return { prompt, mode: "t2av", style: videoStyle || undefined, generate_audio: generateAudio };
+    if (service === "video") return { prompt, mode: videoImageFile || videoImage.trim() ? "ti2av" : "t2av", image: videoImageFile?.name, image_url: videoImageFile ? undefined : videoImage.trim() || undefined, style: videoStyle || undefined, generate_audio: generateAudio };
     const [width, height] = imageSize.split("x").map(Number);
-    if (service === "image2image") return { prompt, width, height, image1_path: sourceImage.trim(), image2_path: referenceImage.trim() || undefined };
+    if (service === "image2image") return { prompt, width, height, image1: sourceImageFile?.name, image2: referenceImageFile?.name, image1_path: sourceImageFile ? undefined : sourceImage.trim(), image2_path: referenceImageFile ? undefined : referenceImage.trim() || undefined };
     return { prompt, width, height };
-  }, [generateAudio, imageSize, prompt, service, speed, ttsText, videoStyle, voice, sourceImage, referenceImage]);
+  }, [generateAudio, imageSize, prompt, service, speed, ttsText, videoStyle, voice, sourceImage, referenceImage, sourceImageFile, referenceImageFile, videoImage, videoImageFile]);
 
   const productRequired = !canUseProduct(user, service);
 
   function changeService(nextService: Service) {
     pollController.current?.abort();
     setService(nextService);
+    setSourceImageFile(null);
+    setReferenceImageFile(null);
+    setVideoImageFile(null);
     setSelectedKey("");
     setRunState("idle");
     setJob(null);
@@ -310,10 +339,22 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
         setRunState("completed");
         return;
       }
-      const accepted = await dashboardRequest<PlaygroundJob>(
-        SERVICE_META[service].endpoint,
-        jsonRequest({ ...requestPreview, api_key_id: effectiveSelectedKey }, { method: "POST", signal: controller.signal }),
-      );
+      const attachments: Record<string, File | null> = service === "image2image"
+        ? { image1: sourceImageFile, image2: referenceImageFile }
+        : service === "video" ? { image: videoImageFile } : {};
+      const files = Object.entries(attachments).filter((entry): entry is [string, File] => entry[1] !== null);
+      if (files.some(([, file]) => file.size > 10 * 1024 * 1024)) throw new Error("Each reference image is limited to 10 MB.");
+      let options = jsonRequest({ ...requestPreview, api_key_id: effectiveSelectedKey }, { method: "POST", signal: controller.signal });
+      if (files.length) {
+        const form = new FormData();
+        for (const [name, value] of Object.entries(requestPreview)) {
+          if (value !== undefined && !(name in attachments)) form.set(name, String(value));
+        }
+        form.set("api_key_id", effectiveSelectedKey);
+        for (const [name, file] of files) form.set(name, file);
+        options = { method: "POST", body: form, signal: controller.signal };
+      }
+      const accepted = await dashboardRequest<PlaygroundJob>(SERVICE_META[service].endpoint, options);
       if (!accepted.job_id) throw new Error("The service did not return a job ID.");
       if (!accepted.poll_token) throw new Error("The service did not return a secure polling token.");
       setGenerationId(accepted.generation_id || null);
@@ -383,10 +424,8 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
               <>
                 {service === "image2image" ? (
                   <>
-                    <label className="field-label" htmlFor="source-image">Source image URL</label>
-                    <input id="source-image" type="url" required placeholder="https://example.com/source.png" value={sourceImage} onChange={(event) => setSourceImage(event.target.value)} />
-                    <label className="field-label" htmlFor="reference-image">Second reference image URL (optional)</label>
-                    <input id="reference-image" type="url" placeholder="https://example.com/reference.png" value={referenceImage} onChange={(event) => setReferenceImage(event.target.value)} />
+                    <ReferenceImageInput id="source-image" label="Source image" required url={sourceImage} file={sourceImageFile} onUrlChange={setSourceImage} onFileChange={setSourceImageFile} />
+                    <ReferenceImageInput id="reference-image" label="Second reference image (optional)" url={referenceImage} file={referenceImageFile} onUrlChange={setReferenceImage} onFileChange={setReferenceImageFile} />
                   </>
                 ) : null}
                 <label className="field-label" htmlFor="image-prompt">{service === "image2image" ? "Editing instructions" : "Prompt"}</label>
@@ -429,6 +468,7 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
 
             {service === "video" ? (
               <>
+                <ReferenceImageInput id="video-image" label="Starting image (optional)" url={videoImage} file={videoImageFile} onUrlChange={setVideoImage} onFileChange={setVideoImageFile} />
                 <label className="field-label" htmlFor="video-prompt">Scene prompt</label>
                 <textarea id="video-prompt" maxLength={2000} onChange={(event) => setPrompt(event.target.value)} rows={5} value={prompt} />
                 <div className="form-two-column">
