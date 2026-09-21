@@ -143,8 +143,6 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
           ["prompt", "string", "Yes", "Non-empty visual description, up to 2,000 characters."],
           ["width", "integer", "No", "512–2048, divisible by 16. Default: 1024."],
           ["height", "integer", "No", "512–2048, divisible by 16. Default: 1024."],
-          ["guidance_scale", "number", "No", "1.0–7.0. Default: 1.0."],
-          ["steps", "integer", "No", "4–30 sampling steps. Default: 8."],
           ["use_prompt_enhancer", "boolean", "No", "Enhance the prompt before generation. Default: true."],
           ["seed", "integer", "No", "Default: -1 for random. Set a fixed seed for repeatability."],
         ]} />
@@ -164,7 +162,6 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
           ["image2_path", "string", "Alternative", "Public/signed HTTP(S) URL for the second reference."],
           ["image1_base64 / image2_base64", "string", "Alternative", "Base64 or image data URL. Gathos uploads these to R2 as well. Use one source format per image."],
           ["width / height", "integer", "No", "32–4096 pixels. Defaults: width 896, height 1152."],
-          ["steps", "integer", "No", "1–99. Default: 8. num_steps is an alias."],
           ["guidance", "number", "No", "1–10. Default: 1.5."],
           ["seed", "integer", "No", "Default: -1 for random."],
         ]} />
@@ -199,31 +196,37 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
         <div className="docs-lead"><p className="panel-kicker">Creator API</p><h2>Generate video</h2><p>Send JSON for text or URL inputs, or multipart form-data for file uploads. Completed jobs return a signed <code>video_url</code>.</p></div>
         <Endpoint description="Submit a Creator video job." method="POST" path="/video-generation" />
         <ParameterTable rows={[
-          ["prompt", "string", "Yes", "Non-empty scene and motion description, up to 2,000 characters."],
-          ["negative_prompt", "string", "No", "Content to avoid. Default: empty string."],
-          ["mode", "string", "No", "t2av (text), ti2av (text + image), ta2v (text + audio), tia2v (text + image + audio). Default: t2av."],
+          ["prompt", "string", "Yes", "Text description for one short clip, up to 2,000 characters. Use style for reusable looks."],
+          ["mode", "string", "No", "t2av (default), ti2av, ta2v, or tia2v."],
+          ["image_url", "string", "By mode", "Public/signed HTTP(S) PNG, JPEG, or WebP image URL for ti2av or tia2v. The server fetches it remotely."],
+          ["image_path", "string", "No", "Advanced: image path already staged on the GPU worker. Mutually exclusive with image_url. For files on your computer, use the upload example below."],
+          ["audio_url", "string", "By mode", "Public/signed HTTP(S) audio URL for ta2v or tia2v, used as a conditioning signal."],
+          ["negative_prompt", "string", "No", "Content to avoid. Put text-avoidance terms here, rather than in the positive prompt. Default: empty string."],
           ["width", "integer", "No", "256–2048, divisible by 32. Default: 1280."],
           ["height", "integer", "No", "256–2048, divisible by 32. Default: 736."],
-          ["fps", "number", "No", "8–60 frames per second. Default: 24."],
-          ["num_frames", "integer", "No", "Default: 121. Rounded to the nearest valid 8n + 1 frame count and clamped to 9–513."],
+          ["num_frames", "number", "No", "Default: 121. Rounded to the nearest valid 8n + 1 frame count and clamped to 9–513. Examples: 120 → 121; 240 → 241 (about 10 seconds at 24 fps)."],
+          ["fps", "number", "No", "8–60 frames per second. Default: 24. Include to choose an explicit playback rate."],
           ["seed", "integer", "No", "Default: -1 for random."],
-          ["style", "string", "No", "Style name from GET /video-generation/styles. Omit for no selected style."],
-          ["lora", "string", "No", "Alternative style/LoRA identifier. style takes precedence when both are supplied."],
-          ["generate_audio", "boolean", "No", "Default: true. Set false for an MP4 without an audio track."],
-          ["prevent_text", "boolean", "No", "Suppress captions, watermarks, and burned-in text. Default: true."],
-          ["enhance_prompt", "boolean", "No", "Enhance the prompt before generation. Default: false."],
-          ["image_url", "string", "By mode", "Public/signed HTTP(S) first-frame image URL for ti2av or tia2v."],
-          ["image", "file", "By mode", "Multipart alternative to image_url: png, jpg, jpeg, or webp."],
-          ["image_path", "string", "By mode", "Worker-accessible image path alternative. For files on your own computer, use multipart image."],
-          ["audio_url", "string", "By mode", "Public/signed HTTP(S) audio URL for ta2v or tia2v."],
-          ["audio", "file", "By mode", "Multipart alternative to audio_url: mp3, wav, m4a, ogg, webm, or flac."],
-          ["run_id", "string", "Yes", "Non-empty client run identifier, up to 255 characters; no control characters."],
-          ["scene_id", "string", "Yes", "Non-empty scene identifier within a run, up to 255 characters; no control characters."],
+          ["style", "string | null", "No", "Choose a style name from the options below. The server resolves the preset automatically. Omit for no selected style."],
+          ["generate_audio", "boolean", "No", "Omit or send true to include audio. Set false for a silent MP4; conditioning audio can still influence motion."],
+          ["prevent_text", "boolean", "No", "Add text-suppression constraints to reduce captions, watermarks, and title cards. Default: true."],
         ]} />
         <div className="docs-callout"><strong>Match inputs to the mode</strong><p>Use exactly one image source for <code>ti2av</code>/<code>tia2v</code> and exactly one audio source for <code>ta2v</code>/<code>tia2v</code>. Other modes reject those inputs. URLs must stay accessible while the job runs.</p></div>
-        <div className="endpoint-stack"><Endpoint description="List currently available named styles." method="GET" path="/video-generation/styles" /><Endpoint description="List available LoRA presets." method="GET" path="/video-generation/loras" /></div>
+        <Endpoint description="List currently available named styles." method="GET" path="/video-generation/styles" />
+        <h3>Style options</h3>
+        <div className="table-scroll docs-table-wrap">
+          <table className="data-table docs-table">
+            <thead><tr><th>Style name</th></tr></thead>
+            <tbody>{[
+              "Pixar", "Clay / Claymation", "CGI", "Stickman", "Watercolor", "Minecraft",
+              "Stylized 3D", "New 3D", "Cinematic", "2D Flat", "Ghibli", "Wool",
+              "Chibi", "Paper Cutout", "Lego", "Anime",
+            ].map((style) => <tr key={style}><td>{style}</td></tr>)}</tbody>
+          </table>
+        </div>
+        <p>Pass the name as <code>style</code>, for example <code>{'{"style": "Pixar"}'}</code>. For Clay / Claymation, send <code>Clay</code> or <code>Claymation</code>.</p>
         <h3>Text to video</h3>
-        <p>Choose your own <code>run_id</code> and <code>scene_id</code> for each new scene. Reuse the same pair and payload when retrying a submission to avoid duplicate jobs.</p>
+        <p>No client-generated IDs are required. Each submission creates a new job, subject to queue and concurrency limits. If the queue is busy, try again manually later.</p>
         <RequestExamples example="video" />
         <h3>Image to video</h3>
         <p>Place <code>reference.png</code> in the working directory. Gathos uploads the image to R2 and passes a signed URL to the generation server; no R2 credentials are needed. To also supply audio, use <code>tia2v</code> and add an <code>audio</code> file or <code>audio_url</code>.</p>

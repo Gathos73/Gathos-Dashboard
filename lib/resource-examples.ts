@@ -14,7 +14,7 @@ type Example = {
 export const REQUEST_EXAMPLES = {
   image: {
     path: "image-generation", key: "GATHOS_IMAGE_KEY",
-    payload: { prompt: "Editorial product photo, soft window light", width: 1024, height: 1024, guidance_scale: 1.0, steps: 8, use_prompt_enhancer: true, seed: -1 },
+    payload: { prompt: "Editorial product photo, soft window light", width: 1024, height: 1024, use_prompt_enhancer: true, seed: -1 },
   },
   image2image: {
     path: "image2image", key: "GATHOS_IMAGE2IMAGE_KEY",
@@ -32,11 +32,11 @@ export const REQUEST_EXAMPLES = {
   },
   video: {
     path: "video-generation", key: "GATHOS_VIDEO_KEY",
-    payload: { run_id: "demo-paper-city-001", scene_id: "scene-1", prompt: "A paper-cut city unfolding at sunrise", mode: "t2av", width: 1280, height: 736, fps: 24, num_frames: 121, seed: -1, generate_audio: true, prevent_text: true, enhance_prompt: false },
+    payload: { prompt: "A paper-cut city unfolding at sunrise", mode: "t2av", width: 1280, height: 736, fps: 24, num_frames: 121, seed: -1, generate_audio: true, prevent_text: true },
   },
   conditionedVideo: {
     path: "video-generation", key: "GATHOS_VIDEO_KEY",
-    payload: { run_id: "demo-image-video-001", scene_id: "scene-1", prompt: "Slow camera push toward the subject", mode: "ti2av", width: 1280, height: 736, num_frames: 121 },
+    payload: { prompt: "Slow camera push toward the subject", mode: "ti2av", width: 1280, height: 736, num_frames: 121 },
     upload: { field: "image", filename: "reference.png", contentType: "image/png" },
   },
 } satisfies Record<string, Example>;
