@@ -30,6 +30,9 @@ const DOC_SECTIONS: Array<{ icon: typeof BookIcon; id: DocSection; label: string
   { icon: ArrowUpRightIcon, id: "polling", label: "Polling jobs", keywords: "poll async status queue eta progress" },
 ];
 
+// Temporarily hide the catalog while keeping it ready to restore.
+const AGENT_SKILLS_AVAILABLE = false;
+
 const SKILLS = [
   {
     accent: "green",
@@ -162,7 +165,6 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
           ["image2_path", "string", "Alternative", "Public/signed HTTP(S) URL for the second reference."],
           ["image1_base64 / image2_base64", "string", "Alternative", "Base64 or image data URL. Gathos uploads these to R2 as well. Use one source format per image."],
           ["width / height", "integer", "No", "32–4096 pixels. Defaults: width 896, height 1152."],
-          ["guidance", "number", "No", "1–10. Default: 1.5."],
           ["seed", "integer", "No", "Default: -1 for random."],
         ]} />
         <Endpoint description="Discover current editing defaults and supported options." method="GET" path="/image2image/config" />
@@ -314,13 +316,15 @@ export function ResourcesClient({ initialTab }: { initialTab: ResourceTab }) {
   return (
     <div>
       <PageHeader
-        actions={<div className="segmented-control" role="group" aria-label="Resource type"><button aria-pressed={tab === "docs"} className={tab === "docs" ? "is-active" : ""} onClick={() => changeTab("docs")} type="button">Documentation</button><button aria-pressed={tab === "skills"} className={tab === "skills" ? "is-active" : ""} onClick={() => changeTab("skills")} type="button">Agent skills</button></div>}
-        description="Build against the API, understand asynchronous jobs, and install ready-made agent workflows."
+        actions={<div className="segmented-control" role="group" aria-label="Resource type"><button aria-pressed={tab === "docs"} className={tab === "docs" ? "is-active" : ""} onClick={() => changeTab("docs")} type="button">Documentation</button><button aria-pressed={tab === "skills"} className={tab === "skills" ? "is-active" : ""} onClick={() => changeTab("skills")} type="button">Agent skills{AGENT_SKILLS_AVAILABLE ? "" : " · Coming soon"}</button></div>}
+        description={AGENT_SKILLS_AVAILABLE ? "Build against the API, understand asynchronous jobs, and install ready-made agent workflows." : "Build against the API and understand asynchronous jobs. Agent skills are coming soon."}
         eyebrow="Developer resources"
         title="Documentation & skills"
       />
 
+      {tab === "docs" || AGENT_SKILLS_AVAILABLE ? (
       <label className="resource-search"><SearchIcon /><span className="sr-only">Search resources</span><input onChange={(event) => setQuery(event.target.value)} placeholder={tab === "docs" ? "Search documentation…" : "Search skills…"} type="search" value={query} /></label>
+      ) : null}
 
       {tab === "docs" ? (
         <div className="docs-layout">
@@ -332,7 +336,13 @@ export function ResourcesClient({ initialTab }: { initialTab: ResourceTab }) {
           </nav>
           <section className="panel docs-content"><DocArticle section={section} /></section>
         </div>
-      ) : <SkillsCatalog query={query} />}
+      ) : AGENT_SKILLS_AVAILABLE ? <SkillsCatalog query={query} /> : (
+        <section className="panel empty-state">
+          <span className="empty-state-icon"><SparklesIcon /></span>
+          <h2>Coming soon</h2>
+          <p>Agent skills are on the way. Check back soon for ready-made creative workflows.</p>
+        </section>
+      )}
     </div>
   );
 }
