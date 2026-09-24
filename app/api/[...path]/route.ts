@@ -50,7 +50,7 @@ function methodIs(method: string, ...allowed: string[]): boolean {
 function isAllowedRoute(path: string[], method: string): boolean {
   const joined = path.join("/");
 
-  if (joined === "generations") return methodIs(method, "GET", "HEAD");
+  if (joined === "generations" || joined === "generations/products") return methodIs(method, "GET", "HEAD");
   if (path[0] === "generations" && UUID_PATTERN.test(path[1] ?? "")) {
     if (path.length === 2) return methodIs(method, "GET", "HEAD");
     if (path.length === 3 && path[2] === "retry") return method === "POST";
