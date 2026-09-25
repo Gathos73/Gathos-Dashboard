@@ -3659,6 +3659,18 @@ textarea::placeholder {
   width: 20px;
 }
 
+.social-provider-icons {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+}
+
+.social-provider-icon {
+  display: block;
+  height: 17px;
+  width: 17px;
+}
+
 .login-divider {
   align-items: center;
   color: var(--muted-light);
