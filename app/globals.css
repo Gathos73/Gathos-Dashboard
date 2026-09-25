@@ -2321,6 +2321,12 @@ textarea::placeholder {
   min-height: 28px;
 }
 
+.preset-preview {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+}
+
 .preset-id {
   align-items: center;
   background: #f6f7f9;

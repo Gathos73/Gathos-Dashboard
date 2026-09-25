@@ -73,6 +73,10 @@ function isAllowedRoute(path: string[], method: string): boolean {
   if (joined === "priority-support") return methodIs(method, "GET", "POST", "HEAD");
 
   if (joined === "voices") return methodIs(method, "GET", "HEAD");
+  if (joined === "voices/presets") return methodIs(method, "GET", "HEAD");
+  if (/^voices\/presets\/(?:actors\/)?[a-zA-Z0-9_-]{1,100}\/preview$/.test(joined)) {
+    return methodIs(method, "GET", "HEAD");
+  }
   if (joined === "voices/upload") return method === "POST";
   if (path.length === 2 && path[0] === "voices") {
     return method === "DELETE" && UUID_PATTERN.test(path[1]);

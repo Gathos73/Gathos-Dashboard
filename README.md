@@ -47,3 +47,43 @@ Mutations and explicit `/api/auth/me` reads invalidate this process's account ca
 before and after forwarding. Subscription confirmation keeps its live polling.
 Other server instances and out-of-band account edits become visible after the
 30-second TTL; no distributed cache or infrastructure is required.
+
+## Voice previews
+
+The library and audio are published to the existing voice-samples R2 bucket.
+The backend caches the R2 catalog for 60 seconds; playback redirects to a fresh
+signed R2 URL. Browsing and playback never contact the proxy or TTS servers,
+and preset audio is not bundled in the dashboard.
+
+Publish or refresh the full library from `backend/`:
+
+```bash
+python -m scripts.sync_preset_voices --source-directory /path/to/voices
+```
+
+The sync command fetches the live proxy catalog, imports every preset and actor
+recording from the supplied local files or CSV links, and publishes the catalog only after all uploads succeed. Audio
+uses immutable content-based keys; failed imports leave the published library
+intact. Existing custom recordings are untouched. Run the command again when
+voices are added, removed, or replaced. Backend workers see updates within 60
+seconds and can keep using their last catalog during an R2 outage.
+
+The command uses the backend's existing `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `PROXY_URL`, and `PROXY_API_KEY` settings.
+The directory option still checks the live catalog and requires every listed
+recording, so a partial local collection cannot replace the full library.
+Once imported, playback requires only the backend and R2. Demo mode also needs
+an authenticated backend for presets.
+
+To import a supplied voice-source CSV together with the original recordings:
+
+```bash
+python -m scripts.sync_preset_voices \
+  --sources-csv '/path/to/New Voice Speakers - English.csv' \
+  --source-directory ../Gathos-Omnivoice/voices
+```
+
+CSV sources take precedence over local files and use the `Actual Name` API ID
+and `Voice Sample (public link)` columns. Public Google Drive links are downloaded
+and checked for WAV/MP3 audio, preventing sharing/login pages from being uploaded
+as recordings. The import uses the existing proxy catalog endpoint only.
