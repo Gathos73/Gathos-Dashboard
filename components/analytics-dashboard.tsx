@@ -3,40 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AnalyticsIcon, KeyIcon, RefreshIcon, SparklesIcon } from "@/components/icons";
+import { UsageChart, UsageWindow, SERVICES, formatTimestamp, serviceLabel } from "@/components/usage-chart";
 import { PageHeader } from "@/components/page-header";
 import { dashboardRequest } from "@/lib/client-api";
 import { createDemoUsage } from "@/lib/demo-data";
-import type { UsageApiPayload, UsagePayload, UsagePoint, UsageRange } from "@/lib/types";
+import type { UsageApiPayload, UsagePayload, UsageRange } from "@/lib/types";
 
 const RANGES: Array<{ value: UsageRange; label: string }> = [
   { value: "current_window", label: "Current window" },
   { value: "24h", label: "24 hours" },
   { value: "7d", label: "7 days" },
 ];
-const SERVICES = ["image", "image2image", "tts", "video"] as const;
-type ServiceFilter = "all" | (typeof SERVICES)[number];
 const numberFormatter = new Intl.NumberFormat("en-US");
-const compactFormatter = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
-
-function formatTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric", hour: "numeric", minute: "2-digit", month: "short",
-  }).format(new Date(value));
-}
-
-function formatBucket(value: string, minutes: number): string {
-  return new Intl.DateTimeFormat("en-US", {
-    ...(minutes >= 360 ? { month: "short", day: "numeric" } as const : {}),
-    hour: "numeric", minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function serviceLabel(value?: string): string {
-  if (value === "tts") return "Text to speech";
-  if (value === "video") return "Video";
-  if (value === "image2image") return "Image to image";
-  return "Text to image";
-}
 
 function normalizeUsage(payload: UsageApiPayload): UsagePayload {
   const total = payload.summary.requests;
@@ -77,125 +55,6 @@ function normalizeUsage(payload: UsageApiPayload): UsagePayload {
   };
 }
 
-function UsageChart({ series, service, bucketMinutes, sampledAt }: {
-  series: UsagePoint[]; service: ServiceFilter; bucketMinutes: number; sampledAt: string;
-}) {
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const available = series.filter((point) => new Date(point.date).getTime() <= new Date(sampledAt).getTime());
-  const valueOf = (point: UsagePoint) => service === "all" ? point.total : point[service];
-  const activeIndex = Math.min(selectedIndex ?? Math.max(0, available.length - 1), Math.max(0, available.length - 1));
-  const active = available[activeIndex];
-  const width = 780;
-  const height = 248;
-  const left = 38;
-  const right = 14;
-  const top = 18;
-  const bottom = 32;
-  const chartWidth = width - left - right;
-  const chartHeight = height - top - bottom;
-  const actualMaxValue = Math.max(0, ...available.map(valueOf));
-  // Use whole-request ticks and let sparse activity occupy visible chart space.
-  const tickStep = Math.max(1, Math.ceil(actualMaxValue / 4));
-  const roundedMax = tickStep * 4;
-  const coordinates = available.map((point, index) => ({
-    x: left + (index / Math.max(1, series.length - 1)) * chartWidth,
-    y: top + chartHeight - (valueOf(point) / roundedMax) * chartHeight,
-  }));
-  const linePath = coordinates
-    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
-    .join(" ");
-  const areaPath = coordinates.length
-    ? `${linePath} L${coordinates.at(-1)?.x ?? left} ${top + chartHeight} L${left} ${top + chartHeight} Z`
-    : "";
-  const labelIndexes = series.length
-    ? Array.from(new Set([0, Math.floor((series.length - 1) / 2), series.length - 1]))
-    : [];
-
-  return (
-    <div className="usage-chart-wrap" tabIndex={0} role="group"
-      aria-label="Interactive request chart. Use arrow keys to explore intervals."
-      onPointerLeave={() => setSelectedIndex(null)}
-      onBlur={() => setSelectedIndex(null)}
-      onKeyDown={(event) => {
-        if (!["ArrowLeft", "ArrowRight", "Home", "End", "Escape"].includes(event.key)) return;
-        event.preventDefault();
-        if (event.key === "Escape") setSelectedIndex(null);
-        else setSelectedIndex(event.key === "Home" ? 0 : event.key === "End" ? available.length - 1 : Math.max(0, Math.min(available.length - 1, activeIndex + (event.key === "ArrowRight" ? 1 : -1))));
-      }}>
-
-      <svg
-        aria-label={`${service === "all" ? "All services" : serviceLabel(service)} request volume. Peak interval: ${actualMaxValue} requests.`}
-        onPointerMove={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          const x = (event.clientX - rect.left) / rect.width * width;
-          setSelectedIndex(Math.max(0, Math.min(available.length - 1, Math.round((x - left) / chartWidth * (series.length - 1)))));
-        }}
-        className="usage-chart"
-        role="img"
-        viewBox={`0 0 ${width} ${height}`}
-      >
-        <defs>
-          <linearGradient id="usage-area" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="#078a52" stopOpacity="0.26" />
-            <stop offset="1" stopColor="#078a52" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0, 0.25, 0.5, 0.75, 1].map((step) => {
-          const y = top + chartHeight * step;
-          const value = Math.round(roundedMax * (1 - step));
-          return (
-            <g key={step}>
-              <line className="chart-gridline" x1={left} x2={width - right} y1={y} y2={y} />
-              <text className="chart-axis-label" textAnchor="end" x={left - 9} y={y + 4}>
-                {compactFormatter.format(value)}
-              </text>
-            </g>
-          );
-        })}
-        {areaPath ? <path d={areaPath} fill="url(#usage-area)" /> : null}
-        {linePath ? <path className="chart-line" d={linePath} /> : null}
-        {coordinates.map((point, index) => (
-          <circle className="chart-point" cx={point.x} cy={point.y} key={available[index].date} r="2.7">
-            <title>{`${formatTimestamp(available[index].date)}: ${valueOf(available[index])} requests`}</title>
-          </circle>
-        ))}
-        {selectedIndex !== null && active && coordinates[activeIndex] ? (
-          <g aria-hidden="true">
-            <line className="chart-crosshair" x1={coordinates[activeIndex].x} x2={coordinates[activeIndex].x} y1={top} y2={top + chartHeight} />
-            <circle className="chart-active-point" cx={coordinates[activeIndex].x} cy={coordinates[activeIndex].y} r="5" />
-          </g>
-        ) : null}
-        {labelIndexes.map((index) => (
-          <text
-            className="chart-axis-label chart-date-label"
-            key={series[index]?.date}
-            textAnchor={index === 0 ? "start" : index === series.length - 1 ? "end" : "middle"}
-            x={left + index / Math.max(1, series.length - 1) * chartWidth}
-            y={height - 5}
-          >
-            {series[index] ? formatBucket(series[index].date, bucketMinutes) : ""}
-          </text>
-        ))}
-      </svg>
-      {selectedIndex !== null && active ? (
-        <div className="chart-inspector chart-hover-details">
-          <div className="chart-inspector-summary" aria-live="polite" aria-atomic="true">
-            <time dateTime={active.date}>{formatTimestamp(active.date)} – {new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(Math.min(new Date(active.date).getTime() + bucketMinutes * 60000, new Date(sampledAt).getTime())))}</time>
-            <strong>{numberFormatter.format(valueOf(active))} requests · {service === "all" ? "All services" : serviceLabel(service)}</strong>
-          </div>
-          {service !== "all" && valueOf(active) === 0 && active.total > 0 ? (
-            <p className="analytics-period">This interval has activity in other services. Select All services or another service above to plot it.</p>
-          ) : null}
-          <p className="analytics-period">All services in this interval</p>
-          <div className="chart-inspector-services">
-            {SERVICES.map((type) => <span key={type}><i className={`legend-dot legend-dot--${type}`} />{serviceLabel(type)} <strong>{numberFormatter.format(active[type])}</strong></span>)}
-          </div>
-        </div>
-      ) : !available.length ? <p className="empty-row">No intervals available yet.</p> : null}
-    </div>
-  );
-}
-
 function AnalyticsSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading usage analytics">
@@ -220,7 +79,6 @@ export function AnalyticsDashboard({
   initialUsage?: UsageApiPayload | null;
 }) {
   const [range, setRange] = useState<UsageRange>("current_window");
-  const [service, setService] = useState<ServiceFilter>("all");
   const [refreshKey, setRefreshKey] = useState(0);
   const [remoteState, setRemoteState] = useState<{
     data: UsagePayload | null;
@@ -373,18 +231,23 @@ export function AnalyticsDashboard({
               <div className="panel-heading">
                 <div>
                   <p className="panel-kicker">Request volume</p>
-                  <h2>{service === "all" ? "All services" : serviceLabel(service)} activity</h2>
-                  <p className="analytics-period">{formatTimestamp(data.period_start)} – {formatTimestamp(data.period_end)} · {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
+                  <h2>Usage by service</h2>
+                  <UsageWindow start={data.period_start} end={data.period_end} />
                   <p className="analytics-period">{data.bucket_minutes === 360 ? "6-hour" : data.bucket_minutes === 60 ? "Hourly" : "10-minute"} intervals{range === "current_window" ? " · Fixed UTC quota window" : ""}</p>
                 </div>
                 <button className={`refresh-state ${loading ? "is-loading" : ""}`} disabled={loading || demo} onClick={() => { setRefreshKey((current) => current + 1); }} type="button" aria-label="Refresh usage analytics">
                   <RefreshIcon /> {loading ? "Updating" : demo ? "Demo data" : "Refresh"}
                 </button>
               </div>
-              <div className="analytics-service-filters" role="group" aria-label="Filter chart by service">
-                {(["all", ...SERVICES] as const).map((type) => <button type="button" key={type} aria-pressed={service === type} className={service === type ? "is-active" : ""} onClick={() => setService(type)}>{type === "all" ? "All services" : serviceLabel(type)}</button>)}
+              <div className="usage-service-charts">
+                {(["all", ...SERVICES] as const).map((service) => (
+                  <section className="usage-service-chart" key={`${range}-${service}`}>
+                    <h3>{service === "all" ? "All services combined" : serviceLabel(service)}</h3>
+                    <UsageChart series={data.series} service={service} bucketMinutes={data.bucket_minutes ?? 10}
+                      periodStart={data.period_start} periodEnd={data.period_end} sampledAt={data.sampled_at ?? data.period_end} />
+                  </section>
+                ))}
               </div>
-              <UsageChart key={range} series={data.series} service={service} bucketMinutes={data.bucket_minutes ?? 10} sampledAt={data.sampled_at ?? data.period_end} />
               <p className="analytics-period">{demo ? "Sample data" : "Updates every minute"} · As of {formatTimestamp(data.sampled_at ?? data.period_end)}</p>
               <div className="chart-legend" aria-label="Service breakdown" role="list">
                 {data.services.map((service) => (
