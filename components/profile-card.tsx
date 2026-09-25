@@ -31,8 +31,8 @@ export function ProfileCard({ demo, user }: { demo: boolean; user: DashboardUser
         setSigningOut(false);
         return;
       }
-      await dashboardRequest<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
-      window.location.replace("/login?logged_out=1");
+      const result = await dashboardRequest<{ ok: boolean; logoutUrl?: string | null }>("/api/auth/logout", { method: "POST" });
+      window.location.replace(result.logoutUrl || "/login?logged_out=1");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "You could not be signed out. Please try again.");
       setSigningOut(false);
