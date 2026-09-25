@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AnalyticsIcon, KeyIcon, RefreshIcon, SparklesIcon } from "@/components/icons";
-import { UsageChart, UsageWindow, SERVICES, formatTimestamp, serviceLabel } from "@/components/usage-chart";
+import { UsageChart, UsageWindow, SERVICE_COLORS, formatTimestamp, serviceLabel } from "@/components/usage-chart";
 import { PageHeader } from "@/components/page-header";
 import { dashboardRequest } from "@/lib/client-api";
 import { createDemoUsage } from "@/lib/demo-data";
@@ -239,20 +239,21 @@ export function AnalyticsDashboard({
                   <RefreshIcon /> {loading ? "Updating" : demo ? "Demo data" : "Refresh"}
                 </button>
               </div>
-              <div className="usage-service-charts">
-                {(["all", ...SERVICES] as const).map((service) => (
-                  <section className="usage-service-chart" key={`${range}-${service}`}>
-                    <h3>{service === "all" ? "All services combined" : serviceLabel(service)}</h3>
-                    <UsageChart series={data.series} service={service} bucketMinutes={data.bucket_minutes ?? 10}
-                      periodStart={data.period_start} periodEnd={data.period_end} sampledAt={data.sampled_at ?? data.period_end} />
-                  </section>
-                ))}
+              <div className="usage-service-chart">
+                <UsageChart key={range} series={data.series} bucketMinutes={data.bucket_minutes ?? 10}
+                  periodStart={data.period_start} periodEnd={data.period_end} sampledAt={data.sampled_at ?? data.period_end} />
               </div>
               <p className="analytics-period">{demo ? "Sample data" : "Updates every minute"} · As of {formatTimestamp(data.sampled_at ?? data.period_end)}</p>
               <div className="chart-legend" aria-label="Service breakdown" role="list">
+                <div className="legend-item" role="listitem">
+                  <span className="legend-dot" style={{ background: SERVICE_COLORS.all }} />
+                  <span>All services</span>
+                  <strong>{numberFormatter.format(data.total_requests)}</strong>
+                  <small>100%</small>
+                </div>
                 {data.services.map((service) => (
                   <div className="legend-item" key={service.type} role="listitem">
-                    <span className={`legend-dot legend-dot--${service.type}`} />
+                    <span className={`legend-dot legend-dot--${service.type}`} style={{ background: SERVICE_COLORS[service.type] }} />
                     <span>{serviceLabel(service.type)}</span>
                     <strong>{numberFormatter.format(service.count)}</strong>
                     <small>{service.percentage}%</small>
