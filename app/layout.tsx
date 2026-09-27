@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Plus_Jakarta_Sans, Space_Mono } from "next/font/google";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
+import { ReferralAttribution } from "@/components/referral-attribution";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -48,7 +49,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       className={`${plusJakartaSans.variable} ${instrumentSerif.variable} ${spaceMono.variable}`}
       lang="en"
     >
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}><ReferralAttribution /></Suspense>
+        {children}
+      </body>
     </html>
   );
 }
