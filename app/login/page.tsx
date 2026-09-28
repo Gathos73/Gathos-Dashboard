@@ -32,9 +32,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <section className="login-panel">
         <div className="login-card">
           <div className="login-mobile-brand"><span aria-hidden="true" className="brand-mark">G</span><strong className="brand-wordmark">Gathos</strong></div>
-          <p className="eyebrow">Welcome back</p>
-          <h1>Sign in to your dashboard</h1>
-          <p className="login-description">Sign in with your Gathos email and password, or continue with social login and organization SSO.</p>
+          <p className="eyebrow">Welcome to Gathos</p>
+          <h1>Access your dashboard</h1>
+          <p className="login-description">Sign in, create an account with verified email, or continue with social login and organization SSO.</p>
           {parameters.logged_out === "1" ? <div className="inline-notice inline-notice--success"><CheckIcon /> You have been signed out.</div> : null}
           {error ? <div className="inline-notice inline-notice--danger" role="alert">{error}</div> : null}
           <LoginForm />

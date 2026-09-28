@@ -3604,6 +3604,105 @@ textarea::placeholder {
   gap: 14px;
 }
 
+.login-auth-flow {
+  display: grid;
+  gap: 14px;
+}
+
+.login-mode-tabs {
+  background: #f4f0e8;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+}
+
+.login-mode-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  min-height: 35px;
+}
+
+.login-mode-tabs button.is-active {
+  background: var(--ink);
+  color: var(--white);
+}
+
+.login-step-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.login-step-heading strong,
+.login-step-heading span {
+  display: block;
+}
+
+.login-step-heading strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.login-step-heading span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.login-step-heading--verified {
+  align-items: center;
+  color: var(--success);
+  display: flex;
+  gap: 9px;
+}
+
+.login-step-heading--verified svg {
+  height: 19px;
+  width: 19px;
+}
+
+.login-otp {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.login-otp input {
+  min-height: 50px;
+  min-width: 0;
+  padding: 0;
+  text-align: center;
+}
+
+.login-step-actions {
+  display: flex;
+  justify-content: space-between;
+}
+
+.login-step-actions button {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  padding: 2px 0;
+}
+
+.login-step-actions button:disabled {
+  color: var(--muted-light);
+  cursor: default;
+}
+
 .login-form .inline-notice {
   margin: 0;
 }
