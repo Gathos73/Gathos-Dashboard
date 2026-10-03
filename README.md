@@ -1,6 +1,6 @@
 # Gathos user dashboard
 
-Standalone Next.js App Router dashboard for `dashboard.gathos.com`. It is intentionally separate from both the public Vite site in `../gathos` and the internal console in `../admin`.
+Standalone Next.js App Router dashboard for `dashboard.gathos.live`. It is intentionally separate from both the public Vite site in `../gathos` and the internal console in `../admin`.
 
 ## Local development
 
@@ -16,7 +16,7 @@ For UI work without a running backend, set `DASHBOARD_DEMO_MODE=true` in `.env.l
 
 ## Production configuration
 
-Set the dashboard's server-only `BACKEND_URL=https://api.gathos.com`. On the FastAPI backend, set `DASHBOARD_URL=https://dashboard.gathos.com`, `BACKEND_URL=https://api.gathos.com`, `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `WORKOS_REDIRECT_URI=https://api.gathos.com/auth/callback`. Register that exact HTTPS redirect URI in the WorkOS dashboard. AuthKit provides social login and configured SSO alongside the existing Gathos email/password fallback; both flows issue the same Gathos session cookie.
+Set the dashboard's server-only `BACKEND_URL=https://api.gathos.live`. On the FastAPI backend, set `DASHBOARD_URL=https://dashboard.gathos.live`, `BACKEND_URL=https://api.gathos.live`, `COOKIE_DOMAIN=.gathos.live`, `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and `WORKOS_REDIRECT_URI=https://api.gathos.live/auth/callback`. Register that exact HTTPS redirect URI in the WorkOS dashboard. AuthKit provides social login and configured SSO alongside the existing Gathos email/password fallback; both flows issue the same Gathos session cookie.
 
 ## Security boundary
 
