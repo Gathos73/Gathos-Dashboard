@@ -7,7 +7,7 @@ import { CardIcon, CheckIcon, SparklesIcon, VoiceIcon, WarningIcon } from "@/com
 import { PageHeader } from "@/components/page-header";
 import { SubscriptionDetails } from "@/components/subscription-details";
 import { dashboardRequest } from "@/lib/client-api";
-import type { DashboardUser, Plan } from "@/lib/types";
+import type { DashboardUser } from "@/lib/types";
 
 type CheckoutResponse = {
   changed?: boolean;
@@ -23,16 +23,6 @@ function formatPlanPrice(amount: number, currency: string): string {
   return formatter.format(amount / 10 ** (formatter.resolvedOptions().maximumFractionDigits ?? 2));
 }
 
-const PLAN_DETAILS: Record<string, { label: string; price: string; cadence: string }> = {
-  free: { label: "Free", price: "$0", cadence: "forever" },
-  trial: { label: "Trial", price: "$0", cadence: "for 7 days" },
-  pro: { label: "Pro", price: "$18", cadence: "per month" },
-  pro_plus: { label: "Creator", price: "$45", cadence: "per month" },
-  business: { label: "Business", price: "Custom", cadence: "agreement" },
-  starter: { label: "Starter", price: "Custom", cadence: "plan" },
-  scale: { label: "Scale", price: "Custom", cadence: "plan" },
-} satisfies Record<Plan, { cadence: string; label: string; price: string }>;
-
 export function SubscriptionClient({
   initialUser,
   paymentTarget,
@@ -46,7 +36,9 @@ export function SubscriptionClient({
   const [message, setMessage] = useState(
     paymentTarget
       ? initiallyConfirmed
-        ? `${initialUser.plan_details?.display_name || PLAN_DETAILS[initialUser.plan]?.label || initialUser.plan} is active on your account.`
+        ? initialUser.plan_details?.display_name
+          ? `${initialUser.plan_details.display_name} is active on your account.`
+          : "Your plan is active on your account."
         : "Confirming your subscription with our billing provider…"
       : "",
   );
@@ -82,7 +74,9 @@ export function SubscriptionClient({
         const refreshedTarget = refreshedPlan === paymentTarget;
         if (payload.user && refreshedTarget) {
           setUser(payload.user);
-          setMessage(`${payload.user.plan_details?.display_name || PLAN_DETAILS[payload.user.plan]?.label || payload.user.plan} is now active on your account.`);
+          setMessage(payload.user.plan_details?.display_name
+            ? `${payload.user.plan_details.display_name} is now active on your account.`
+            : "Your plan is now active on your account.");
           window.history.replaceState({}, "", "/subscription");
           return;
         }
@@ -124,7 +118,9 @@ export function SubscriptionClient({
         const refreshed = await dashboardRequest<MeResponse>("/api/auth/me");
         if (!refreshed.user) throw new Error("Your plan changed, but the subscription details could not be refreshed. Please reload this page.");
         setUser(refreshed.user);
-        setMessage(`${refreshed.user.plan_details?.display_name || PLAN_DETAILS[refreshed.user.plan]?.label || refreshed.user.plan} is now active on your account.`);
+        setMessage(refreshed.user.plan_details?.display_name
+          ? `${refreshed.user.plan_details.display_name} is now active on your account.`
+          : "Your plan is now active on your account.");
       } else if (response.pendingPayment) {
         setMessage(response.message || "Your payment is processing. Access will update after confirmation.");
       } else {
@@ -137,13 +133,12 @@ export function SubscriptionClient({
     }
   }
 
-  const fallback = PLAN_DETAILS[user.plan] || { label: user.plan, price: "Custom", cadence: "agreement" };
   const details = user.plan_details;
   const current = details ? {
-    label: details.display_name,
+    label: details.display_name || "Plan unavailable",
     price: details.display_price || formatPlanPrice(details.price_minor, details.currency),
     cadence: details.billing_label || ({ month: "per month", year: "per year", none: "" }[details.billing_interval] ?? details.billing_interval),
-  } : fallback;
+  } : { label: "Plan unavailable", price: "Unavailable", cadence: "" };
   const accessActive = user.access_active ?? !(user.plan === "trial" && user.trial?.expired);
   const trialExpired = user.plan === "trial" && user.trial?.expired;
   const trialProgress = user.trial

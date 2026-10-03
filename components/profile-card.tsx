@@ -6,15 +6,10 @@ import Link from "next/link";
 import { BookIcon, CardIcon, CheckIcon, KeyIcon, LogoutIcon, UserIcon, WarningIcon } from "@/components/icons";
 import { PageHeader } from "@/components/page-header";
 import { dashboardRequest } from "@/lib/client-api";
-import type { DashboardUser, Plan } from "@/lib/types";
+import type { DashboardUser } from "@/lib/types";
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "G";
-}
-
-function planLabel(plan: Plan): string {
-  if (plan === "pro_plus") return "Creator";
-  return plan.charAt(0).toUpperCase() + plan.slice(1);
 }
 
 export function ProfileCard({ demo, user }: { demo: boolean; user: DashboardUser }) {
@@ -54,7 +49,7 @@ export function ProfileCard({ demo, user }: { demo: boolean; user: DashboardUser
         <section className="panel profile-identity-card">
           <div className="profile-avatar-large">{initials(user.name)}</div>
           <div className="profile-identity-copy">
-            <span className="status-badge status-badge--violet">{planLabel(user.plan)} plan</span>
+            <span className="status-badge status-badge--violet">{user.plan_details?.display_name || "Plan unavailable"}</span>
             <h2>{user.name}</h2>
             <p>{user.email}</p>
           </div>
@@ -67,7 +62,7 @@ export function ProfileCard({ demo, user }: { demo: boolean; user: DashboardUser
             <dl className="detail-list">
               <div><dt>Display name</dt><dd>{user.name}</dd></div>
               <div><dt>Email address</dt><dd>{user.email}</dd></div>
-              <div><dt>Current plan</dt><dd><span className="status-badge status-badge--success">{planLabel(user.plan)}</span></dd></div>
+              <div><dt>Current plan</dt><dd><span className="status-badge status-badge--success">{user.plan_details?.display_name || "Plan unavailable"}</span></dd></div>
               <div><dt>Authentication</dt><dd>Secure session</dd></div>
             </dl>
           </section>

@@ -27,9 +27,15 @@ test('reuses verified accounts, checks expiry before cache, and supports backend
   const valid = Buffer.from(JSON.stringify({ data, signature: createHmac('sha256', 'test-secret').update(data).digest('hex') })).toString('base64url');
   let token;
   let calls = 0;
+  const planDetails = {
+    display_name: 'Studio Unlimited', price_minor: 25000, currency: 'USD', billing_interval: 'month',
+  };
   t.mock.method(globalThis, 'fetch', async () => {
     calls++;
-    return Response.json({ user: { userId: 'one', email: 'one@example.com', name: 'One', plan: 'pro' } });
+    return Response.json({ user: {
+      userId: 'one', email: 'one@example.com', name: 'One',
+      plan: 'custom_studio_42', plan_details: planDetails,
+    } });
   });
   const dependencies = {
     'server-only': {}, react: { cache: fn => fn },
@@ -48,8 +54,11 @@ test('reuses verified accounts, checks expiry before cache, and supports backend
   assert.equal(await getCurrentUser(), null);
   assert.equal(calls, 0);
   token = valid;
-  assert.equal((await getCurrentUser()).userId, 'one');
-  assert.equal((await getCurrentUser()).userId, 'one');
+  const account = await getCurrentUser();
+  assert.equal(account.userId, 'one');
+  assert.equal(account.plan, 'custom_studio_42');
+  assert.deepEqual(account.plan_details, planDetails);
+  assert.deepEqual((await getCurrentUser()).plan_details, planDetails);
   assert.equal(calls, 1);
   assert.deepEqual(await getSessionUser(), {
     userId: 'one', email: 'one@example.com', name: 'One', avatar: undefined,

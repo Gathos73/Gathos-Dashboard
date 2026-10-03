@@ -21,7 +21,7 @@ import {
   VoiceIcon,
   type IconProps,
 } from "@/components/icons";
-import type { DashboardUser, Plan } from "@/lib/types";
+import type { DashboardUser } from "@/lib/types";
 import { RouteNavigationFeedback } from "@/components/route-navigation-feedback";
 
 type NavigationItem = {
@@ -106,13 +106,6 @@ const PAGE_TITLES = new Map([
 
 function isActivePath(pathname: string, href: string): boolean {
   return href === "/" ? pathname === href : pathname.startsWith(href);
-}
-
-function planLabel(plan: Plan): string {
-  if (plan === "pro_plus") return "Creator";
-  if (plan === "pro") return "Pro";
-  if (plan === "trial") return "Trial";
-  return plan.charAt(0).toUpperCase() + plan.slice(1);
 }
 
 function initials(name: string): string {
@@ -302,7 +295,7 @@ export function DashboardShell({ children, user }: { children: ReactNode; demo: 
             <span className="user-avatar">{initials(user.name)}</span>
             <span className="user-copy">
               <strong>{user.name}</strong>
-              <small>{planLabel(user.plan)} plan</small>
+              <small>{user.plan_details?.display_name || "Plan unavailable"}</small>
             </span>
             <ChevronRightIcon className="profile-chevron" />
           </Link>
@@ -344,7 +337,7 @@ export function DashboardShell({ children, user }: { children: ReactNode; demo: 
             </nav>
           </div>
           <div className="topbar-actions">
-            <span className="plan-badge">{planLabel(user.plan)}</span>
+            <span className="plan-badge">{user.plan_details?.display_name || "Plan unavailable"}</span>
             <div className="dashboard-search-wrap">
               <form
                 className="dashboard-search"
