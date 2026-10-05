@@ -7,6 +7,7 @@ import { CardIcon, CheckIcon, SparklesIcon, VoiceIcon, WarningIcon } from "@/com
 import { PageHeader } from "@/components/page-header";
 import { SubscriptionDetails } from "@/components/subscription-details";
 import { dashboardRequest } from "@/lib/client-api";
+import { useDashboardAccount } from "./dashboard-account";
 import type { DashboardUser } from "@/lib/types";
 
 type CheckoutResponse = {
@@ -16,7 +17,6 @@ type CheckoutResponse = {
   url?: string;
 };
 
-type MeResponse = { user?: DashboardUser | null };
 type AvailablePlan = { code: string; display_name: string; description: string | null; price_minor: number; currency: string; billing_interval: string; products: string[]; is_downgrade: boolean };
 function formatPlanPrice(amount: number, currency: string): string {
   const formatter = new Intl.NumberFormat("en-US", { style: "currency", currency });
@@ -30,7 +30,7 @@ export function SubscriptionClient({
   initialUser: DashboardUser;
   paymentTarget: string | null;
 }) {
-  const [user, setUser] = useState(initialUser);
+  const { user, update: setUser, refresh } = useDashboardAccount(initialUser);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const initiallyConfirmed = Boolean(paymentTarget && initialUser.plan === paymentTarget);
   const [message, setMessage] = useState(
@@ -68,7 +68,7 @@ export function SubscriptionClient({
     async function checkPlan() {
       attempts += 1;
       try {
-        const payload = await dashboardRequest<MeResponse>("/api/auth/me");
+        const payload = { user: await refresh() };
         if (!active) return;
         const refreshedPlan = payload.user?.plan;
         const refreshedTarget = refreshedPlan === paymentTarget;
@@ -96,7 +96,7 @@ export function SubscriptionClient({
       active = false;
       if (timeout) window.clearTimeout(timeout);
     };
-  }, [paymentTarget, user.plan]);
+  }, [paymentTarget, user.plan, refresh, setUser]);
 
   async function choosePlan(target: string) {
     const selectedPlan = availablePlans?.find((plan) => plan.code === target);
@@ -115,7 +115,7 @@ export function SubscriptionClient({
         return;
       }
       if (response.changed) {
-        const refreshed = await dashboardRequest<MeResponse>("/api/auth/me");
+        const refreshed = { user: await refresh() };
         if (!refreshed.user) throw new Error("Your plan changed, but the subscription details could not be refreshed. Please reload this page.");
         setUser(refreshed.user);
         setMessage(refreshed.user.plan_details?.display_name

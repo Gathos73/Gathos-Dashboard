@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardAccount } from "./dashboard-account";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PageHeader } from "./page-header";
@@ -52,12 +54,13 @@ function truncate(text: string, max = 80): string {
 export function PrioritySupportClient({
   demo,
   initialTickets,
-  user,
+  user: initialUser,
 }: {
   demo: boolean;
   initialTickets?: PrioritySupportTicket[];
   user: DashboardUser;
 }) {
+  const { user } = useDashboardAccount(initialUser);
   const hasPrioritySupport = Boolean(user.priority_support || user.plan_details?.priority_support);
 
   // Tickets state

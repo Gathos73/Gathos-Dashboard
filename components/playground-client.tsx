@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardAccount } from "./dashboard-account";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -165,7 +167,8 @@ function ReferenceImageInput({ id, label, url, file, required = false, onUrlChan
   </div>;
 }
 
-export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; user: DashboardUser; initialKeys?: ApiKeyRecord[] }) {
+export function PlaygroundClient({ demo, user: initialUser, initialKeys }: { demo: boolean; user: DashboardUser; initialKeys?: ApiKeyRecord[] }) {
+  const { user } = useDashboardAccount(initialUser);
   const [service, setService] = useState<Service>("image");
   const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : (initialKeys ?? []));
   const [selectedKey, setSelectedKey] = useState("");
@@ -285,6 +288,7 @@ export function PlaygroundClient({ demo, user, initialKeys }: { demo: boolean; u
     let failures = 0;
     while (!controller.signal.aborted) {
       await sleep(service === "video" ? 7000 : 3500, controller.signal);
+      if (document.visibilityState === "hidden") continue;
       try {
         const update = await dashboardRequest<PlaygroundJob>(
           `/api/playground/jobs/${SERVICE_META[service].pollService}/${encodeURIComponent(jobId)}?poll_token=${encodeURIComponent(pollToken)}`,

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { SubscriptionClient } from "@/components/subscription-client";
-import { requireUser } from "@/lib/server-user";
+import { requireSessionUser } from "@/lib/server-user";
 
 export const metadata: Metadata = { title: "Subscription" };
 
@@ -10,7 +10,7 @@ type SubscriptionPageProps = {
 };
 
 export default async function SubscriptionPage({ searchParams }: SubscriptionPageProps) {
-  const [user, parameters] = await Promise.all([requireUser(), searchParams]);
+  const [user, parameters] = await Promise.all([requireSessionUser(), searchParams]);
   const paymentTarget = parameters.plan || (parameters.creator_upgrade === "paid"
     ? "pro_plus"
     : parameters.subscribed === "true"

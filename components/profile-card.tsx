@@ -6,13 +6,15 @@ import Link from "next/link";
 import { BookIcon, CardIcon, CheckIcon, KeyIcon, LogoutIcon, UserIcon, WarningIcon } from "@/components/icons";
 import { PageHeader } from "@/components/page-header";
 import { dashboardRequest } from "@/lib/client-api";
+import { useDashboardAccount } from "./dashboard-account";
 import type { DashboardUser } from "@/lib/types";
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "G";
 }
 
-export function ProfileCard({ demo, user }: { demo: boolean; user: DashboardUser }) {
+export function ProfileCard({ demo, user: initialUser }: { demo: boolean; user: DashboardUser }) {
+  const { user } = useDashboardAccount(initialUser);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");

@@ -21,6 +21,7 @@ import {
   VoiceIcon,
   type IconProps,
 } from "@/components/icons";
+import { useDashboardAccount } from "@/components/dashboard-account";
 import type { DashboardUser } from "@/lib/types";
 import { RouteNavigationFeedback } from "@/components/route-navigation-feedback";
 
@@ -131,7 +132,8 @@ function serverViewportSnapshot(): boolean {
   return false;
 }
 
-export function DashboardShell({ children, user }: { children: ReactNode; demo: boolean; user: DashboardUser }) {
+export function DashboardShell({ children, user: initialUser }: { children: ReactNode; demo: boolean; user: DashboardUser }) {
+  const { user } = useDashboardAccount(initialUser);
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);

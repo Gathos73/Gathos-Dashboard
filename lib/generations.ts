@@ -4,6 +4,7 @@ export type GenerationRecord = {
   created_at: string; started_at: string | null; completed_at: string | null;
   latest_error_code: string | null; latest_error_message: string | null;
   output_count: number; primary_asset_id: string | null; download_path: string | null;
+  output_ingest_pending?: boolean;
   api_key_name: string | null;
 };
 export type GenerationDetail = GenerationRecord & {

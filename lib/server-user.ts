@@ -61,8 +61,8 @@ export const getCurrentUser = cache(async (): Promise<DashboardUser | null> => {
         ...payload.user,
         name: payload.user.name?.trim() || payload.user.email.split("@")[0] || "Gathos user",
       };
-    } catch {
-      return null;
+    } catch (error) {
+      throw new Error("Account details are temporarily unavailable. Please retry.", { cause: error });
     }
   }, Boolean(identity));
 });
