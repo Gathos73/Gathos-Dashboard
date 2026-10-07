@@ -5,10 +5,9 @@ export function canUseProduct(user: DashboardUser, product: string): boolean {
 }
 
 export function keyMatchesProduct(key: ApiKeyRecord, product: string): boolean {
-  if (key.product_codes) return key.product_codes.includes(product);
-  if (key.scope !== "all_entitled" && key.type !== "unknown") {
-    const keyProduct = key.type === "image_gen" ? "image" : key.type;
-    return keyProduct === product;
+  const keyProduct = key.type === "image_gen" ? "image" : key.type;
+  if (key.scope === "all_entitled" || key.type === "unknown") {
+    return Boolean(key.product_codes?.includes(product));
   }
-  return (key.type === "image_gen" ? "image" : key.type) === product;
+  return keyProduct === product && (!key.product_codes || key.product_codes.includes(product));
 }

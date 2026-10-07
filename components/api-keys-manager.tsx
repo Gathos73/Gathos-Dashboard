@@ -6,60 +6,20 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CopyIcon,
-  ImageIcon,
   KeyIcon,
   PlusIcon,
   TrashIcon,
-  VideoIcon,
-  VoiceIcon,
   WarningIcon,
 } from "@/components/icons";
+import { useDashboardAccount } from "@/components/dashboard-account";
 import { PageHeader } from "@/components/page-header";
 import { dashboardRequest, jsonRequest } from "@/lib/client-api";
-import { canUseProduct, keyMatchesProduct } from "@/lib/access";
+import { keyMatchesProduct } from "@/lib/access";
+import { keyProducts, canCreateProductKey } from "@/lib/products";
 import { DEMO_KEYS } from "@/lib/demo-data";
 import type { ApiKeyRecord, ApiKeyType, DashboardUser } from "@/lib/types";
 
 type KeysResponse = { keys?: ApiKeyRecord[] };
-
-const SERVICES: Array<{
-  color: string;
-  description: string;
-  icon: typeof ImageIcon;
-  label: string;
-  prefix: string;
-  type: ApiKeyType;
-}> = [
-  {
-    color: "violet",
-    description: "Text-to-image and image workflows",
-    icon: ImageIcon,
-    label: "Image generation",
-    prefix: "img_live_",
-    type: "image_gen",
-  },
-  {
-    color: "blue",
-    description: "Preset and cloned voice synthesis",
-    icon: VoiceIcon,
-    label: "Text to speech",
-    prefix: "tts_live_",
-    type: "tts",
-  },
-  {
-    color: "green",
-    description: "Creator video with optional audio",
-    icon: VideoIcon,
-    label: "Video generation",
-    prefix: "vid_live_",
-    type: "video",
-  },
-];
-
-SERVICES.push({ color: "violet", description: "Edit images using reference inputs", icon: ImageIcon,
-  label: "Image to image", prefix: "", type: "image2image" });
-SERVICES.push({ color: "blue", description: "Keys with no current product access", icon: KeyIcon,
-  label: "Other keys", prefix: "", type: "unknown" });
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
@@ -73,14 +33,6 @@ function formatDate(value?: string | null): string {
   }).format(new Date(value));
 }
 
-function canCreateKeys(user: DashboardUser): boolean {
-  return SERVICES.some((service) => canUseProduct(user, service.type === "image_gen" ? "image" : service.type));
-}
-
-function canCreateKeyType(user: DashboardUser, _keys: ApiKeyRecord[], type: ApiKeyType): boolean {
-  return canUseProduct(user, type === "image_gen" ? "image" : type);
-}
-
 function normalizeKey(key: ApiKeyRecord): ApiKeyRecord {
   return {
     ...key,
@@ -90,20 +42,24 @@ function normalizeKey(key: ApiKeyRecord): ApiKeyRecord {
   };
 }
 
-export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; user: DashboardUser; initialKeys?: ApiKeyRecord[] }) {
+export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo: boolean; user: DashboardUser; initialKeys?: ApiKeyRecord[] }) {
+  const { user: account, refresh } = useDashboardAccount(initialUser);
+  const user = account.products ? account : initialUser;
   const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : (initialKeys ?? []));
   const [expandedService, setExpandedService] = useState<ApiKeyType | null>(null);
   const [loading, setLoading] = useState(!demo && initialKeys === undefined);
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [name, setName] = useState("");
-  const [type, setType] = useState<ApiKeyType>("image_gen");
+  const [type, setType] = useState<ApiKeyType>("");
   const [creating, setCreating] = useState(false);
   const [createdSecret, setCreatedSecret] = useState<{ name: string; value: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const createDialog = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { if (!demo) void refresh(); }, [demo, refresh]);
 
   useEffect(() => {
     if (demo || initialKeys !== undefined) return;
@@ -155,10 +111,17 @@ export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; use
     calls: keys.reduce((sum, key) => sum + key.calls_count, 0),
     generations: keys.reduce((sum, key) => sum + key.generations_count, 0),
   }), [keys]);
-  const firstAvailableType = SERVICES.find((service) => canCreateKeyType(user, keys, service.type))?.type;
+  const SERVICES = useMemo(() => {
+    return keyProducts(user, keys).map((product) => ({
+      type: product.code, label: product.name, color: "green", icon: KeyIcon,
+      description: "Application credentials", prefix: "gth_live_", available: product.available !== false,
+    })).concat([{ type: "unknown", label: "Other keys", color: "blue", icon: KeyIcon,
+      description: "Keys with no current product access", prefix: "", available: false }]);
+  }, [user, keys]);
+  const firstAvailableType = SERVICES.find((service) => service.available && canCreateProductKey(user, service.type))?.type;
 
   function openCreateForm(preferredType?: ApiKeyType) {
-    const nextType = preferredType && canCreateKeyType(user, keys, preferredType)
+    const nextType = preferredType && canCreateProductKey(user, preferredType)
       ? preferredType
       : firstAvailableType;
     if (!nextType) return;
@@ -167,7 +130,7 @@ export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; use
   }
 
   async function createKey() {
-    if (!canCreateKeyType(user, keys, type) || creating) return;
+    if (!canCreateProductKey(user, type) || creating) return;
     setCreating(true);
     setError("");
     const service = SERVICES.find((item) => item.type === type) ?? SERVICES[0];
@@ -247,7 +210,7 @@ export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; use
         title="API keys"
       />
 
-      {!canCreateKeys(user) ? (
+      {!(user.product_codes ?? []).some((code) => canCreateProductKey(user, code)) ? (
         <div className="inline-notice inline-notice--warning">
           <WarningIcon /> Start a trial or choose a paid plan before creating API keys.
         </div>
@@ -290,7 +253,7 @@ export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; use
             const Icon = service.icon;
             const serviceKeys = keys.filter((key) => service.type === "unknown"
               ? !(key.product_codes?.length) && key.type === "unknown"
-              : keyMatchesProduct(key, service.type === "image_gen" ? "image" : service.type));
+              : keyMatchesProduct(key, service.type));
             if (service.type === "unknown" && !serviceKeys.length) return null;
             return (
               <section className="panel key-service-item" key={service.type}>
@@ -365,11 +328,11 @@ export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; use
                     <div className="service-empty">
                       <span className={`service-icon service-icon--${service.color}`}><KeyIcon /></span>
                       <p>No {service.label.toLowerCase()} keys yet.</p>
-                      {canCreateKeyType(user, keys, service.type) ? (
+                      {canCreateProductKey(user, service.type) ? (
                         <button className="text-button" onClick={() => openCreateForm(service.type)} type="button">
                           Create your first key
                         </button>
-                      ) : <small>{service.type === "video" ? "Creator plan required" : "Plan access required"}</small>}
+                      ) : <small>Plan access required</small>}
                     </div>
                   )}
                 </div>
@@ -389,10 +352,10 @@ export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; use
             </div>
             <label className="field-label" htmlFor="key-service">Service</label>
             <select id="key-service" onChange={(event) => setType(event.target.value as ApiKeyType)} value={type}>
-              {SERVICES.filter((service) => service.type !== "unknown").map((service) => (
-                <option disabled={!canCreateKeyType(user, keys, service.type)} key={service.type} value={service.type}>
+              {SERVICES.filter((service) => service.available).map((service) => (
+                <option disabled={!canCreateProductKey(user, service.type)} key={service.type} value={service.type}>
                   {service.label}
-                  {!canUseProduct(user, service.type === "image_gen" ? "image" : service.type)
+                  {!canCreateProductKey(user, service.type)
                     ? " — Not available on this plan"
                     : ""}
                 </option>
@@ -411,7 +374,7 @@ export function ApiKeysManager({ demo, user, initialKeys }: { demo: boolean; use
             <p className="field-help">Use a name that identifies the app or environment using this key.</p>
             <div className="modal-actions">
               <button className="button button-secondary" onClick={() => setFormOpen(false)} type="button">Cancel</button>
-              <button className="button button-primary" disabled={creating || !canCreateKeyType(user, keys, type)} onClick={createKey} type="button">
+              <button className="button button-primary" disabled={creating || !canCreateProductKey(user, type)} onClick={createKey} type="button">
                 {creating ? "Creating…" : "Create key"}
               </button>
             </div>

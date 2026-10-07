@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AnalyticsIcon, KeyIcon, RefreshIcon, SparklesIcon } from "@/components/icons";
-import { UsageChart, UsageWindow, SERVICE_COLORS, formatTimestamp, serviceLabel } from "@/components/usage-chart";
+import { UsageChart, UsageWindow, serviceColor, SERVICE_COLORS, formatTimestamp, serviceLabel } from "@/components/usage-chart";
 import { PageHeader } from "@/components/page-header";
 import { dashboardRequest } from "@/lib/client-api";
 import { createDemoUsage } from "@/lib/demo-data";
@@ -18,12 +18,13 @@ const numberFormatter = new Intl.NumberFormat("en-US");
 
 function normalizeUsage(payload: UsageApiPayload): UsagePayload {
   const total = payload.summary.requests;
-  const services = (["image", "image2image", "tts", "video"] as const).map((type) => ({
+  const services = Object.keys(payload.by_type).map((type) => ({
     count: payload.by_type[type] ?? 0,
     percentage: total ? Math.round(((payload.by_type[type] ?? 0) / total) * 100) : 0,
     type,
   }));
   return {
+    products: payload.products,
     limits: payload.limits,
     bucket_minutes: payload.period.bucket_minutes,
     sampled_at: payload.period.sampled_at,
@@ -220,7 +221,7 @@ export function AnalyticsDashboard({
               <span className="metric-icon metric-icon--amber"><RefreshIcon /></span>
               <div>
                 <p>Top service</p>
-                <strong className="metric-text-value">{data.total_requests ? serviceLabel(busiestService?.type) : "No activity"}</strong>
+                <strong className="metric-text-value">{data.total_requests ? serviceLabel(busiestService?.type, data.products) : "No activity"}</strong>
                 <small>{busiestService?.percentage ?? 0}% of activity</small>
               </div>
             </article>
@@ -240,7 +241,7 @@ export function AnalyticsDashboard({
                 </button>
               </div>
               <div className="usage-service-chart">
-                <UsageChart key={range} series={data.series} bucketMinutes={data.bucket_minutes ?? 10}
+                <UsageChart products={data.products} key={range} series={data.series} bucketMinutes={data.bucket_minutes ?? 10}
                   periodStart={data.period_start} periodEnd={data.period_end} sampledAt={data.sampled_at ?? data.period_end} />
               </div>
               <p className="analytics-period">{demo ? "Sample data" : "Updates every minute"} · As of {formatTimestamp(data.sampled_at ?? data.period_end)}</p>
@@ -253,8 +254,8 @@ export function AnalyticsDashboard({
                 </div>
                 {data.services.map((service) => (
                   <div className="legend-item" key={service.type} role="listitem">
-                    <span className={`legend-dot legend-dot--${service.type}`} style={{ background: SERVICE_COLORS[service.type] }} />
-                    <span>{serviceLabel(service.type)}</span>
+                    <span className={`legend-dot legend-dot--${service.type}`} style={{ background: serviceColor(service.type) }} />
+                    <span>{serviceLabel(service.type, data.products)}</span>
                     <strong>{numberFormatter.format(service.count)}</strong>
                     <small>{service.percentage}%</small>
                   </div>
@@ -273,7 +274,7 @@ export function AnalyticsDashboard({
                 {data.services.map((service) => (
                   <div className="service-usage-row" key={service.type}>
                     <div>
-                      <span>{serviceLabel(service.type)}</span>
+                      <span>{serviceLabel(service.type, data.products)}</span>
                       <strong>{numberFormatter.format(service.count)}</strong>
                     </div>
                     <div className="progress-track">
@@ -332,7 +333,7 @@ export function AnalyticsDashboard({
                         <td>
                           <strong>{key.name}</strong>
                         </td>
-                        <td><span className={`service-badge service-badge--${key.type}`}>{serviceLabel(key.type === "image_gen" ? "image" : key.type)}</span></td>
+                        <td><span className={`service-badge service-badge--${key.type}`}>{serviceLabel(key.type === "image_gen" ? "image" : key.type, data.products)}</span></td>
                         <td className="align-right tabular">{numberFormatter.format(key.count)}</td>
                       </tr>
                     ))}
@@ -353,7 +354,7 @@ export function AnalyticsDashboard({
                   <div className="activity-row" key={activity.id}>
                     <span className={`activity-mark activity-mark--${activity.type}`} />
                     <div>
-                      <strong>{serviceLabel(activity.type)}</strong>
+                      <strong>{serviceLabel(activity.type, data.products)}</strong>
                       <small>{activity.key_name || "Dashboard session"}</small>
                     </div>
                     <time dateTime={activity.created_at}>{formatTimestamp(activity.created_at)}</time>

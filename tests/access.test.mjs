@@ -34,3 +34,10 @@ test('general-purpose keys use their product grants', () => {
   }
   assert.equal(keyMatchesProduct({ type: 'unknown' }, 'video'), false);
 });
+
+
+test('catalog-defined keys match arbitrary product codes', () => {
+  assert.equal(keyMatchesProduct({ type: 'stt', product_codes: ['stt'] }, 'stt'), true);
+  assert.equal(keyMatchesProduct({ type: 'future_product', product_codes: ['future_product'] }, 'future_product'), true);
+  assert.equal(keyMatchesProduct({ type: 'future_product', product_codes: ['future_product'] }, 'image'), false);
+});

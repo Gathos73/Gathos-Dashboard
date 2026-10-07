@@ -115,10 +115,10 @@ export function createDemoUsage(range: UsageRange, windowSeconds: number): Usage
       video,
     };
   });
-  const imageTotal = series.reduce((sum, point) => sum + point.image, 0);
-  const ttsTotal = series.reduce((sum, point) => sum + point.tts, 0);
-  const videoTotal = series.reduce((sum, point) => sum + point.video, 0);
-  const image2imageTotal = series.reduce((sum, point) => sum + point.image2image, 0);
+  const imageTotal = series.reduce((sum, point) => sum + Number(point.image ?? 0), 0);
+  const ttsTotal = series.reduce((sum, point) => sum + Number(point.tts ?? 0), 0);
+  const videoTotal = series.reduce((sum, point) => sum + Number(point.video ?? 0), 0);
+  const image2imageTotal = series.reduce((sum, point) => sum + Number(point.image2image ?? 0), 0);
   const total = imageTotal + image2imageTotal + ttsTotal + videoTotal;
   const activity: UsageActivity[] = [
     {

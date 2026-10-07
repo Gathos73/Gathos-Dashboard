@@ -1,4 +1,5 @@
 export type Plan = string;
+export type CatalogProduct = { code: string; name: string; available?: boolean };
 
 export type TrialUsage = {
   window_limit: number | null;
@@ -28,6 +29,7 @@ export type DashboardUser = {
     display_price: string | null;
     billing_label: string;
   } | null;
+  products?: CatalogProduct[];
   product_codes?: string[];
   access_active?: boolean;
   entitlement_status?: string | null;
@@ -69,9 +71,10 @@ export type PrioritySupportTicket = {
   updated_at?: string;
 };
 
-export type ApiKeyType = "image_gen" | "tts" | "video" | "image2image" | "unknown";
+export type ApiKeyType = string;
 
 export type ApiKeyRecord = {
+  product_name?: string;
   scope?: "all_entitled" | "selected_products";
   product_codes?: string[];
   calls_count: number;
@@ -89,19 +92,12 @@ export type ApiKeyRecord = {
 
 export type UsageRange = "current_window" | "24h" | "7d";
 
-export type UsagePoint = {
-  date: string;
-  image: number;
-  image2image: number;
-  total: number;
-  tts: number;
-  video: number;
-};
+export type UsagePoint = { date: string; total: number; [key: string]: string | number };
 
 export type UsageService = {
   count: number;
   percentage: number;
-  type: "image" | "image2image" | "tts" | "video";
+  type: string;
 };
 
 export type UsageKey = {
@@ -115,7 +111,7 @@ export type UsageActivity = {
   created_at: string;
   id: string;
   key_name?: string | null;
-  type: "image" | "image2image" | "tts" | "video";
+  type: string;
 };
 
 export type UsageLimits = {
@@ -133,6 +129,7 @@ export type UsageLimits = {
 };
 
 export type UsagePayload = {
+  products?: CatalogProduct[];
   limits?: UsageLimits;
   bucket_minutes?: number;
   sampled_at?: string;
@@ -151,7 +148,8 @@ export type UsagePayload = {
 
 export type UsageApiPayload = {
   limits?: UsageLimits;
-  by_type: { image2image?: number; image: number; tts: number; video: number };
+  products?: CatalogProduct[];
+  by_type: Record<string, number>;
   daily: UsagePoint[];
   keys: Array<{
     created_at?: string | null;
@@ -169,7 +167,7 @@ export type UsageApiPayload = {
   recent: Array<{
     api_key: { id: string; name: string; type: ApiKeyType } | null;
     created_at: string;
-    type: "image" | "image2image" | "tts" | "video";
+    type: string;
   }>;
   summary: {
     active_keys: number;
