@@ -33,7 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const response = NextResponse.json({ ok: true, code, captured: true });
   response.cookies.set("gathos_ref", code, {
-    domain: request.nextUrl.hostname.endsWith("gathos.com") ? ".gathos.com" : undefined,
+    domain: request.nextUrl.hostname.endsWith("gathos.live") ? ".gathos.live" : undefined,
     httpOnly: true,
     maxAge: THIRTY_DAYS,
     path: "/",
