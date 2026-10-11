@@ -18,7 +18,7 @@ import { PageHeader } from "@/components/page-header";
 import { API_BASE, EXAMPLE_LANGUAGES, REQUEST_EXAMPLES, requestExample, type ExampleLanguage } from "@/lib/resource-examples";
 
 type ResourceTab = "docs" | "skills";
-type DocSection = "quickstart" | "authentication" | "image" | "image2image" | "tts" | "video" | "polling";
+type DocSection = "quickstart" | "authentication" | "image" | "image2image" | "tts" | "stt" | "video" | "polling";
 
 const DOC_SECTIONS: Array<{ icon: typeof BookIcon; id: DocSection; label: string; keywords: string }> = [
   { icon: SparklesIcon, id: "quickstart", label: "Quickstart", keywords: "start install first request overview" },
@@ -26,6 +26,7 @@ const DOC_SECTIONS: Array<{ icon: typeof BookIcon; id: DocSection; label: string
   { icon: ImageIcon, id: "image", label: "Image generation", keywords: "image prompt width height base64" },
   { icon: ImageIcon, id: "image2image", label: "Image to image", keywords: "edit source reference local upload file klein" },
   { icon: VoiceIcon, id: "tts", label: "Text to speech", keywords: "tts voice clone speech audio language" },
+  { icon: VoiceIcon, id: "stt", label: "Speech to Text", keywords: "stt transcription transcribe audio upload recording transcript subtitles srt csv timestamps" },
   { icon: VideoIcon, id: "video", label: "Video generation", keywords: "video creator audio style mode" },
   { icon: ArrowUpRightIcon, id: "polling", label: "Polling jobs", keywords: "poll async status queue eta progress" },
 ];
@@ -116,9 +117,9 @@ function DocArticle({ section }: { section: DocSection }) {
   const articles = {
     quickstart: (
       <>
-        <div className="docs-lead"><p className="panel-kicker">Get started</p><h2>Your first Gathos request</h2><p>Submit a job, keep its <code>job_id</code>, and poll until the result is ready. All endpoint paths below are relative to <code>{API_BASE}</code>.</p></div>
+        <div className="docs-lead"><p className="panel-kicker">Get started</p><h2>Your first Gathos request</h2><p>Submit a job, keep its returned identifier (<code>generation_id</code> for Speech to Text, <code>job_id</code> for other services), and poll until the result is ready. All endpoint paths below are relative to <code>{API_BASE}</code>.</p></div>
         <div className="quickstart-steps">
-          <div><span>1</span><div><strong>Create an API key</strong><p>Use a key authorized for the image, TTS, or video service you need.</p></div></div>
+          <div><span>1</span><div><strong>Create an API key</strong><p>Choose the service you need in API keys. Your active plan must include that product.</p></div></div>
           <div><span>2</span><div><strong>Export the key</strong><p>Set the matching environment variable from Authentication. Run examples on your server or local terminal.</p></div></div>
           <div><span>3</span><div><strong>Submit and poll</strong><p>Choose curl, Python requests, or Node.js below. Each script saves the completed response to <code>result.json</code>; see Polling jobs for output fields.</p></div></div>
         </div>
@@ -132,6 +133,7 @@ function DocArticle({ section }: { section: DocSection }) {
         <CodeBlock title="Bash · environment variables">{`export GATHOS_IMAGE_KEY='img_live_...'
 export GATHOS_IMAGE2IMAGE_KEY='YOUR_IMAGE_TO_IMAGE_KEY'
 export GATHOS_TTS_KEY='tts_live_...'
+export GATHOS_STT_KEY='YOUR_SPEECH_TO_TEXT_KEY'
 export GATHOS_VIDEO_KEY='vid_live_...'
 export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
         <CodeBlock title="Authorization header">{`Authorization: Bearer $GATHOS_IMAGE_KEY`}</CodeBlock>
@@ -193,6 +195,68 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
         <RequestExamples example="cloning" />
       </>
     ),
+    stt: (
+      <>
+        <div className="docs-lead"><p className="panel-kicker">Transcription API</p><h2>Speech to Text</h2><p>Turn an audio recording into a transcript with optional timestamps and downloadable JSON, text, subtitle, and CSV files. Submit an audio URL or upload a local file, then poll the returned <code>generation_id</code>.</p></div>
+        <div className="docs-callout"><strong>Use a Speech to Text key</strong><p>Your active plan must include Speech to Text. Select it when creating an API key and export the secret as <code>GATHOS_STT_KEY</code>.</p></div>
+        <h3>Request identity</h3>
+        <p>Both submission endpoints require <code>Idempotency-Key</code> (1–255 characters). Choose a unique value for each new recording or set of options. Reuse that value only when retrying the same request; changing its audio or options returns HTTP 409. The examples read it from <code>GATHOS_STT_REQUEST_ID</code>.</p>
+        <CodeBlock title="Bash · configure your request">{`export GATHOS_STT_KEY='YOUR_SPEECH_TO_TEXT_KEY'
+export GATHOS_STT_REQUEST_ID='recording-001'`}</CodeBlock>
+        <h3>Transcribe an audio URL</h3>
+        <Endpoint description="Submit an audio URL as application/json. Returns HTTP 202 with generation_id, status, and replayed." method="POST" path="/stt" />
+        <ParameterTable rows={[
+          ["audio_url", "string", "Yes for URL input", "Direct public or signed HTTPS audio URL. Local paths, private network addresses, and redirecting URLs are rejected."],
+          ["timestamps", "boolean", "No", "Include timestamped segments. Default: true."],
+          ["formats", "string[]", "No", "Unique, non-empty selection of json, txt, srt, csv. Default: all four."],
+        ]} />
+        <p>Replace the example URL with a direct link to your recording. Keep it accessible until Gathos has fetched the audio.</p>
+        <RequestExamples example="stt" />
+        <h3>Upload a local recording</h3>
+        <Endpoint description="Upload audio using multipart/form-data. Returns the same asynchronous response as URL submission." method="POST" path="/stt/upload" />
+        <ParameterTable rows={[
+          ["file", "file", "Yes", "One audio file: WAV, MP3, FLAC, M4A, OGG, AAC, or WebM."],
+          ["timestamps", "boolean text", "No", "Send true or false. Default: true."],
+          ["formats", "comma-separated string", "No", "For example json,txt,srt,csv. Default: all four; no duplicate formats."],
+        ]} />
+        <p>Place <code>recording.wav</code> in your working directory. Use a new request identity when switching from the URL example to this upload. Let the HTTP client set the multipart Content-Type boundary.</p>
+        <RequestExamples example="sttUpload" />
+        <h3>Read the transcript</h3>
+        <Endpoint description="Read status, transcript, timestamped segments, errors, and available artifact download paths using your Speech to Text key." method="GET" path="/stt/jobs/{generation_id}" />
+        <ParameterTable rows={[
+          ["generation_id", "UUID string", "Always", "The Gathos identifier returned by submission."],
+          ["status", "string", "Always", "Poll until succeeded, failed, cancelled, expired, orphaned, or lease_expired. queued and running are intermediate states."],
+          ["transcript", "string", "On success", "Recognized text from the recording."],
+          ["segments", "array", "When timestamps are available", "Timestamped transcript segments with start, end (seconds), and text."],
+          ["artifacts", "object", "On success", "Requested formats mapped to asset_id and download_path."],
+          ["error_code", "string | null", "On failure", "Machine-readable reason when available."],
+        ]} />
+        <CodeBlock title="JSON · completed result (selected fields)">{JSON.stringify({
+          generation_id: "11111111-1111-4111-8111-111111111111", status: "succeeded",
+          transcript: "Welcome to Gathos.", segments: [{ start: 0.2, end: 1.5, text: "Welcome to Gathos." }],
+          artifacts: { txt: { asset_id: "22222222-2222-4222-8222-222222222222", download_path: "/api/v1/stt/jobs/11111111-1111-4111-8111-111111111111/artifacts/txt" } },
+          error_code: null,
+        }, null, 2)}</CodeBlock>
+        <h3>Download transcript files</h3>
+        <Endpoint description="Download a requested output format. Redirects to a short-lived signed download URL." method="GET" path="/stt/jobs/{generation_id}/artifacts/{format}" />
+        <p>Replace <code>txt</code> with <code>json</code>, <code>srt</code>, or <code>csv</code> to download another requested format. Only the owning account can read the job and its artifacts.</p>
+        <CodeBlock title="Bash · download the transcript after the example completes">{`generation_id=$(jq -er '.generation_id' result.json)
+curl --fail-with-body --silent --show-error --location --max-time 120 \\
+  -H "Authorization: Bearer $GATHOS_STT_KEY" \\
+  "${API_BASE}/stt/jobs/$generation_id/artifacts/txt" \\
+  --output transcript.txt`}</CodeBlock>
+        <h3>Limits and errors</h3>
+        <p>Audio must have a finite, positive duration. Configured size and duration limits apply to both URL and uploaded input; plan request, queue, and concurrency limits also apply. Existing jobs and artifacts remain readable when the submission quota is exhausted.</p>
+        <ParameterTable rows={[
+          ["401 / 403", "HTTP status", "Authentication or access", "Check your API key, its Speech to Text authorization, and active plan access."],
+          ["409", "HTTP status", "Identity conflict", "The same request identity was reused with different audio or options."],
+          ["413", "HTTP status", "Audio too large", "The audio exceeds the configured upload size limit."],
+          ["422", "HTTP status", "Invalid input", "Check the file, duration, URL, formats, and required request identity."],
+          ["429", "HTTP status", "Plan limit", "Wait for quota, queue, or concurrency capacity. Follow Retry-After when present."],
+        ]} />
+        <p>URL audio is fetched and validated after submission. HTTP 202 confirms the request was queued; a URL download or validation failure appears in the job status. Keep the identifier if your polling loop times out so you can resume without submitting again.</p>
+      </>
+    ),
     video: (
       <>
         <div className="docs-lead"><p className="panel-kicker">Creator API</p><h2>Generate video</h2><p>Send JSON for text or URL inputs, or multipart form-data for file uploads. Completed jobs return a signed <code>video_url</code>.</p></div>
@@ -237,19 +301,22 @@ export GATHOS_API_URL='${API_BASE}'`}</CodeBlock>
     ),
     polling: (
       <>
-        <div className="docs-lead"><p className="panel-kicker">Async jobs</p><h2>Poll a submitted job</h2><p>Use the returned <code>job_id</code> and the same service key. Each service example includes a polling loop with a three-second interval and a 30-minute deadline. Timing out locally does not cancel the job; keep its ID to resume polling.</p></div>
+        <div className="docs-lead"><p className="panel-kicker">Async jobs</p><h2>Poll a submitted job</h2><p>Use the returned <code>generation_id</code> for Speech to Text, or <code>job_id</code> for other services, with the same service key. Each service example includes a polling loop with a three-second interval and a 30-minute deadline. Timing out locally does not cancel the job; keep its ID to resume polling.</p></div>
         <div className="endpoint-stack">
           <Endpoint description="Image job status and result." method="GET" path="/image-generation/jobs/{job_id}" />
           <Endpoint description="Image editing job status and result." method="GET" path="/image2image/jobs/{job_id}" />
           <Endpoint description="Speech job status and result." method="GET" path="/tts/jobs/{job_id}" />
+          <Endpoint description="Speech to Text status, transcript, and downloadable artifacts." method="GET" path="/stt/jobs/{generation_id}" />
           <Endpoint description="Video job status and signed output URL." method="GET" path="/video-generation/jobs/{job_id}" />
         </div>
         <ParameterTable rows={[
-          ["job_id", "string", "Yes", "Job identifier returned by submission."],
-          ["status", "string", "Yes", "Image/TTS: queued, processing, completed, failed. Video may also return pending, running, or cancelled. Stop on completed, failed, or cancelled."],
+          ["job_id / generation_id", "string", "Yes", "Use generation_id for Speech to Text; job_id for other services."],
+          ["status", "string", "Yes", "Image/TTS: queued, processing, completed, failed. Video may also return pending, running, or cancelled. Stop on completed, failed, or cancelled. Speech to Text succeeds on succeeded and may also terminate with expired, orphaned, or lease_expired."],
           ["result.image_base64", "string", "Image result", "Base64 image bytes in the completed image result."],
           ["result.audio_base64", "string", "TTS result", "Base64 audio bytes in the completed speech result."],
           ["result.content_type", "string", "Image/TTS result", "MIME type of the generated image or audio."],
+          ["transcript / segments", "string / array", "Speech to Text result", "Recognized text and optional timestamped segments."],
+          ["artifacts", "object", "Speech to Text result", "Requested formats with authenticated download paths."],
           ["video_url", "string", "Video result", "Top-level signed MP4 download URL. Download before the link expires."],
           ["error", "string", "On failure", "Failure details when available."],
           ["progress", "number", "No", "Image/TTS progress when available; not guaranteed."],
