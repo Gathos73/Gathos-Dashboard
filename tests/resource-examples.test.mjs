@@ -44,6 +44,23 @@ for (const name of ['stt', 'sttUpload']) {
   });
 }
 
+for (const name of ['video', 'conditionedVideo']) {
+  test(`${name}: polling stops on the video API's done response`, async () => {
+    const code = requestExample(REQUEST_EXAMPLES[name], 'JavaScript (Node.js)').replace(/^import .*;$/m, '');
+    const writes = [];
+    let polls = 0;
+    const execute = Object.getPrototypeOf(async function () {}).constructor('process', 'fetch', 'readFile', 'writeFile', 'console', code);
+    await execute({ env: { GATHOS_VIDEO_KEY: 'test-key' } }, async (url, options) => {
+      if (options.method === 'POST') return { ok: true, json: async () => ({ job_id: 'video-1', status: 'queued' }) };
+      assert.equal(++polls, 1, 'must stop after receiving done');
+      return { ok: true, json: async () => ({ job_id: 'video-1', status: 'done', video_url: 'https://example.com/video.mp4' }) };
+    }, async () => Buffer.from('image'), async (...args) => writes.push(args), { log() {} });
+    assert.equal(JSON.parse(writes[0][1]).status, 'done');
+    assert.match(requestExample(REQUEST_EXAMPLES[name], 'Python (requests)'), /job\["status"\] == "done"/);
+    assert.match(requestExample(REQUEST_EXAMPLES[name], 'Bash (curl)'), /done\) printf/);
+  });
+}
+
 test('rendered STT documentation includes the public workflow without model references', () => {
   const source = readFileSync(new URL('../components/resources-client.tsx', import.meta.url), 'utf8') + '\nexport { DocArticle };';
   const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2017, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;

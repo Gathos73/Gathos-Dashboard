@@ -311,7 +311,7 @@ curl --fail-with-body --silent --show-error --location --max-time 120 \\
         </div>
         <ParameterTable rows={[
           ["job_id / generation_id", "string", "Yes", "Use generation_id for Speech to Text; job_id for other services."],
-          ["status", "string", "Yes", "Image/TTS: queued, processing, completed, failed. Video may also return pending, running, or cancelled. Stop on completed, failed, or cancelled. Speech to Text succeeds on succeeded and may also terminate with expired, orphaned, or lease_expired."],
+          ["status", "string", "Yes", "Image/TTS succeed on completed. Video succeeds on done and returns video_url; queued, pending, processing, and running are nonterminal. Stop on done or completed for success, or failed, cancelled, or expired for failure. Speech to Text succeeds on succeeded and may also terminate with expired, orphaned, or lease_expired."],
           ["result.image_base64", "string", "Image result", "Base64 image bytes in the completed image result."],
           ["result.audio_base64", "string", "TTS result", "Base64 audio bytes in the completed speech result."],
           ["result.content_type", "string", "Image/TTS result", "MIME type of the generated image or audio."],

@@ -47,10 +47,12 @@ export const REQUEST_EXAMPLES = {
   },
   video: {
     path: "video-generation", key: "GATHOS_VIDEO_KEY",
+    successStatus: "done",
     payload: { prompt: "A paper-cut city unfolding at sunrise", mode: "t2av", width: 1280, height: 736, fps: 24, num_frames: 121, seed: -1, generate_audio: true, prevent_text: true },
   },
   conditionedVideo: {
     path: "video-generation", key: "GATHOS_VIDEO_KEY",
+    successStatus: "done",
     payload: { prompt: "Slow camera push toward the subject", mode: "ti2av", width: 1280, height: 736, num_frames: 121 },
     upload: { field: "image", filename: "reference.png", contentType: "image/png" },
   },
