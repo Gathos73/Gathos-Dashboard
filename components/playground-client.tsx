@@ -19,12 +19,13 @@ import {
 import { PlaygroundDownload } from "@/components/playground-download";
 import { PageHeader } from "@/components/page-header";
 import { canUseProduct, keyMatchesProduct } from "@/lib/access";
-import { dashboardRequest, jsonRequest } from "@/lib/client-api";
+import { DashboardApiError, dashboardRequest, jsonRequest } from "@/lib/client-api";
+import { requestFingerprint, retainedIdentity } from "@/lib/generation-request.mjs";
 import { DEMO_KEYS, DEMO_VOICES } from "@/lib/demo-data";
 import type { ApiKeyRecord, ApiKeyType, DashboardUser, PlaygroundJob, VoiceSample } from "@/lib/types";
 
 type Service = "image" | "image2image" | "tts" | "video";
-type RunState = "idle" | "submitting" | "queued" | "completed" | "failed";
+type RunState = "idle" | "submitting" | "queued" | "completed" | "failed" | "disconnected";
 type CatalogOption = { label: string; value: string };
 
 const SERVICE_META: Record<Service, {
@@ -134,8 +135,10 @@ function terminalStatus(status?: string): boolean {
 }
 
 function stateLabel(state: RunState, job: PlaygroundJob | null): string {
+  if (state === "disconnected") return "Connection interrupted";
   if (state === "submitting") return "Submitting request";
   if (state === "queued") {
+    if (job?.status === "archiving") return "Saving your output";
     if (job?.status === "waiting_capacity") return "Waiting for capacity";
     if (job?.status === "processing" || job?.status === "running") return "Generating output";
     return "Request queued";
@@ -197,6 +200,75 @@ export function PlaygroundClient({ demo, user: initialUser, initialKeys }: { dem
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState("");
   const pollController = useRef<AbortController | null>(null);
+  const submissionIdentity = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [connectionError, setConnectionError] = useState("");
+  const storageKey = `gathos:playground:${user.userId}:${service}`;
+
+  useEffect(() => {
+    if (demo) return;
+    const controller = new AbortController();
+    const resume = window.setTimeout(() => {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+        if (saved?.generationId && !controller.signal.aborted) {
+          pollController.current?.abort();
+          pollController.current = controller;
+          setGenerationId(saved.generationId);
+          setRunState("queued");
+          void pollGeneration(saved.generationId, controller, storageKey);
+        }
+      } catch { /* Storage can be disabled; live tracking still works. */ }
+    }, 0);
+    return () => { window.clearTimeout(resume); controller.abort(); };
+  }, [storageKey, demo]);
+
+  async function pollGeneration(id: string, controller: AbortController, trackingKey: string) {
+    type Update = { status: string; progress: number; phase?: string; download_path?: string; latest_error_message?: string };
+    let failures = 0, done = false, pushLive = false;
+    function apply(update: Update) {
+      if (controller.signal.aborted || done) return;
+      failures = 0;
+      setConnectionError("");
+      setJob({ generation_id: id, status: update.phase === "archival" ? "archiving" : update.status, progress: update.progress });
+      if (update.status === "succeeded") {
+        setOutput(update.download_path || null);
+        setRunState("completed");
+        done = true;
+      } else if (["failed", "cancelled", "expired"].includes(update.status)) {
+        setError(update.latest_error_message || "The generation did not complete.");
+        setRunState("failed");
+        done = true;
+      }
+      if (done) {
+        submissionIdentity.current = null;
+        try { sessionStorage.removeItem(trackingKey); } catch { /* optional persistence */ }
+      }
+    }
+    const events = new EventSource(`/api/generations/${encodeURIComponent(id)}/events`);
+    events.onopen = () => { pushLive = true; };
+    events.onerror = () => { pushLive = false; };
+    events.onmessage = (message) => {
+      try { apply(JSON.parse(message.data)); } catch { /* polling remains authoritative */ }
+      if (done) events.close();
+    };
+    const close = () => events.close();
+    controller.signal.addEventListener("abort", close, { once: true });
+    try {
+      while (!controller.signal.aborted && !done) {
+        try {
+          apply(await dashboardRequest<Update>(`/api/generations/${encodeURIComponent(id)}/status`, { signal: controller.signal, cache: "no-store" }));
+        } catch {
+          if (controller.signal.aborted) return;
+          failures += 1;
+          setConnectionError("Connection interrupted. Your generation is still being tracked; reconnecting…");
+        }
+        if (!done) await sleep(Math.min(30000, (pushLive ? 10000 : 1500) * 2 ** Math.min(failures, 4)), controller.signal).catch(() => undefined);
+      }
+    } finally {
+      events.close();
+      controller.signal.removeEventListener("abort", close);
+    }
+  }
   const hasVoiceAccess = canUseProduct(user, "tts");
 
   useEffect(() => {
@@ -308,11 +380,8 @@ export function PlaygroundClient({ demo, user: initialUser, initialKeys }: { dem
       } catch (pollError) {
         if (pollError instanceof Error && pollError.name === "AbortError") return;
         failures += 1;
-        if (failures >= 3) {
-          setError("The job server could not be reached after three attempts. The job may still be running.");
-          setRunState("failed");
-          return;
-        }
+        setConnectionError("Connection interrupted. The job may still be running; reconnecting…");
+        await sleep(Math.min(30000, 3500 * failures), controller.signal);
       }
     }
   }
@@ -328,6 +397,7 @@ export function PlaygroundClient({ demo, user: initialUser, initialKeys }: { dem
     setGenerationId(null);
     setOutput(null);
     setError("");
+    setConnectionError("");
 
     try {
       if (demo) {
@@ -358,7 +428,22 @@ export function PlaygroundClient({ demo, user: initialUser, initialKeys }: { dem
         for (const [name, file] of files) form.set(name, file);
         options = { method: "POST", body: form, signal: controller.signal };
       }
+      const fingerprint = await requestFingerprint(service, requestPreview, effectiveSelectedKey, files);
+      let saved: { fingerprint?: string; key?: string; generationId?: string } = submissionIdentity.current || {};
+      try { saved = JSON.parse(sessionStorage.getItem(storageKey) || "null") || saved; } catch { /* optional persistence */ }
+      const identity = retainedIdentity(fingerprint, saved);
+      submissionIdentity.current = { fingerprint, key: identity };
+      try { sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint, key: identity })); } catch { /* optional persistence */ }
+      options.headers = { ...options.headers, "Idempotency-Key": identity };
       const accepted = await dashboardRequest<PlaygroundJob>(SERVICE_META[service].endpoint, options);
+      if (accepted.generation_id) {
+        setGenerationId(accepted.generation_id);
+        setJob(accepted);
+        setRunState("queued");
+        try { sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint, key: identity, generationId: accepted.generation_id })); } catch { /* optional persistence */ }
+        await pollGeneration(accepted.generation_id, controller, storageKey);
+        return;
+      }
       if (!accepted.job_id) throw new Error("The service did not return a job ID.");
       if (!accepted.poll_token) throw new Error("The service did not return a secure polling token.");
       setGenerationId(accepted.generation_id || null);
@@ -368,7 +453,7 @@ export function PlaygroundClient({ demo, user: initialUser, initialKeys }: { dem
     } catch (requestError) {
       if (requestError instanceof Error && requestError.name === "AbortError") return;
       setError(requestError instanceof Error ? requestError.message : "The request could not be submitted.");
-      setRunState("failed");
+      setRunState(requestError instanceof DashboardApiError && requestError.status < 500 ? "failed" : "disconnected");
     }
   }
 
@@ -518,7 +603,8 @@ export function PlaygroundClient({ demo, user: initialUser, initialKeys }: { dem
             {runState === "completed" && output && service === "video" ? <video className="playground-video-result" controls src={output} /> : null}
             {runState === "completed" && output ? <PlaygroundDownload key={output} output={output} generationId={generationId} service={service} /> : null}
             {runState === "completed" && !output && !demo ? <div className="demo-output"><strong>Job completed</strong><p>The service completed without a previewable output URL.</p></div> : null}
-            {runState === "failed" ? <div className="output-error"><WarningIcon /><p>{error || job?.error || "This request failed."}</p></div> : null}
+            {connectionError ? <p role="status">{connectionError}</p> : null}
+            {(runState === "failed" || runState === "disconnected") ? <div className="output-error"><WarningIcon /><p>{error || job?.error || "This request failed."}</p></div> : null}
           </section>
         </aside>
       </div>

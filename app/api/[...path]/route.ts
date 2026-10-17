@@ -53,6 +53,7 @@ function isAllowedRoute(path: string[], method: string): boolean {
   if (joined === "generations" || joined === "generations/products") return methodIs(method, "GET", "HEAD");
   if (path[0] === "generations" && UUID_PATTERN.test(path[1] ?? "")) {
     if (path.length === 2) return methodIs(method, "GET", "HEAD");
+    if (path.length === 3 && ["status", "events"].includes(path[2])) return methodIs(method, "GET", "HEAD");
     if (path.length === 3 && path[2] === "retry") return method === "POST";
   }
   if (path.length === 3 && path[0] === "assets" && UUID_PATTERN.test(path[1]) && path[2] === "download") {
