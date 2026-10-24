@@ -1,3 +1,4 @@
+import { cookieName } from "@/lib/cookie-names";
 import "server-only";
 
 import { cache } from "react";
@@ -21,12 +22,12 @@ export function isDemoMode(): boolean {
 
 export async function getServerDashboardData<T>(path: string): Promise<T | null> {
   if (isDemoMode()) return null;
-  const token = (await cookies()).get("gathos_session")?.value;
+  const token = (await cookies()).get(cookieName("gathos_session"))?.value;
   if (!token) return null;
   try {
     const response = await fetch(`${getBackendUrl()}/api/${path.replace(/^\/+/, "")}`, {
       cache: "no-store",
-      headers: { cookie: `gathos_session=${encodeURIComponent(token)}` },
+      headers: { cookie: `${cookieName("gathos_session")}=${encodeURIComponent(token)}` },
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return null;
@@ -39,7 +40,7 @@ export async function getServerDashboardData<T>(path: string): Promise<T | null>
 export const getCurrentUser = cache(async (): Promise<DashboardUser | null> => {
   if (isDemoMode()) return DEMO_USER;
 
-  const token = (await cookies()).get("gathos_session")?.value;
+  const token = (await cookies()).get(cookieName("gathos_session"))?.value;
   if (!token) return null;
   const secret = process.env.SESSION_SECRET;
   const identity = secret ? verifySession(token, secret) : null;
@@ -50,7 +51,7 @@ export const getCurrentUser = cache(async (): Promise<DashboardUser | null> => {
     try {
       const response = await fetch(`${getBackendUrl()}/api/auth/me`, {
         cache: "no-store",
-        headers: { cookie: `gathos_session=${encodeURIComponent(token)}` },
+        headers: { cookie: `${cookieName("gathos_session")}=${encodeURIComponent(token)}` },
         signal: AbortSignal.timeout(5_000),
       });
       if (response.status === 401) return null;
@@ -70,7 +71,7 @@ export const getCurrentUser = cache(async (): Promise<DashboardUser | null> => {
 export const getSessionUser = cache(async (): Promise<DashboardUser | null> => {
   if (isDemoMode()) return DEMO_USER;
 
-  const token = (await cookies()).get("gathos_session")?.value;
+  const token = (await cookies()).get(cookieName("gathos_session"))?.value;
   if (!token) return null;
   const secret = process.env.SESSION_SECRET;
   if (!secret) return getCurrentUser();

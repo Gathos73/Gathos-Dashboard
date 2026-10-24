@@ -10,6 +10,8 @@ export const metadata: Metadata = { title: "Sign in" };
 
 type LoginPageProps = { searchParams: Promise<{ error?: string; logged_out?: string }> };
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://gathos.com";
+
 const AUTH_ERRORS: Record<string, string> = {
   auth_failed: "Sign-in could not be completed. Please try again.",
   auth_not_configured: "Sign-in is temporarily unavailable. Please contact support.",
@@ -57,13 +59,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             Login with Social
           </Link>
           <div className="login-security"><span className="status-dot" /><p><strong>Secure Gathos authentication</strong><small>Both sign-in methods create the same secure HTTP-only session.</small></p></div>
-          <p className="login-legal">By continuing, you agree to the Gathos <a href="https://gathos.com/legal?tab=terms">Terms</a> and <a href="https://gathos.com/legal?tab=privacy">Privacy Policy</a>.</p>
+          <p className="login-legal">By continuing, you agree to the Gathos <a href={`${siteUrl}/legal?tab=terms`}>Terms</a> and <a href={`${siteUrl}/legal?tab=privacy`}>Privacy Policy</a>.</p>
         </div>
-        <Link className="back-to-site" href="https://gathos.com"><ArrowLeftIcon size={14} /> Back to gathos.com</Link>
+        <Link className="back-to-site" href={siteUrl}><ArrowLeftIcon size={14} /> Back to site</Link>
       </section>
 
       <aside className="login-story">
-        <Link className="login-brand" href="https://gathos.com">
+        <Link className="login-brand" href={siteUrl}>
           <span aria-hidden="true" className="brand-mark brand-mark--large">G</span>
           <span><strong className="brand-wordmark">Gathos</strong><small>Developer dashboard</small></span>
         </Link>
