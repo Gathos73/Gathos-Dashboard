@@ -3750,6 +3750,10 @@ textarea::placeholder {
   transform: translateY(-1px);
 }
 
+.workos-button + .workos-button {
+  margin-top: 10px;
+}
+
 .google-mark,
 .workos-mark {
   align-items: center;

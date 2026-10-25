@@ -71,6 +71,9 @@ export function ProfileCard({ demo, user: initialUser }: { demo: boolean; user: 
 
           <section className="panel profile-shortcuts">
             <div className="panel-heading"><div><p className="panel-kicker">Shortcuts</p><h2>Workspace settings</h2></div></div>
+            <Link href="/api/auth/google?link=1"><span className="service-icon service-icon--blue"><UserIcon /></span><span><strong>Connect Google</strong><small>Link Google to this existing account</small></span></Link>
+            <Link href="/api/auth/apple?link=1"><span className="service-icon service-icon--violet"><UserIcon /></span><span><strong>Connect Apple</strong><small>Safely link Apple, including Private Relay</small></span></Link>
+            <Link href="/api/auth/github?link=1"><span className="service-icon service-icon--green"><UserIcon /></span><span><strong>Connect GitHub</strong><small>Link GitHub to this existing account</small></span></Link>
             <Link href="/api-keys"><span className="service-icon service-icon--violet"><KeyIcon /></span><span><strong>API keys</strong><small>Create or revoke your credentials</small></span></Link>
             <Link href="/subscription"><span className="service-icon service-icon--green"><CardIcon /></span><span><strong>Subscription</strong><small>Review plans and billing access</small></span></Link>
             <Link href="/resources"><span className="service-icon service-icon--blue"><BookIcon /></span><span><strong>Documentation</strong><small>Integration guides and agent skills</small></span></Link>

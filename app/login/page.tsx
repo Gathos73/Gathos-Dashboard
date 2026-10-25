@@ -18,10 +18,12 @@ const AUTH_ERRORS: Record<string, string> = {
   access_denied: "Sign-in was cancelled or access was denied.",
   account_conflict: "This email is already linked to a different sign-in identity. Please contact support.",
   account_inactive: "This account is inactive. Please contact support.",
+  account_link_required: "Sign in with your existing email first before connecting an Apple private-relay address.",
   db_error: "Your account could not be loaded. Please try again in a moment.",
   disposable_email: "Please use a permanent email address for your Gathos account.",
   invalid_state: "Your sign-in request expired or could not be verified. Please start again.",
   no_code: "The sign-in response was incomplete. Please start again.",
+  verified_email_required: "That provider did not supply a verified email. Sign in with email first or choose another provider.",
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
@@ -41,7 +43,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           {error ? <div className="inline-notice inline-notice--danger" role="alert">{error}</div> : null}
           <LoginForm />
           <div className="login-divider"><span>or</span></div>
-          <Link className="workos-button" href="/api/auth/login" prefetch={false}>
+          <Link className="workos-button" href="/api/auth/google" prefetch={false}>
             <span className="social-provider-icons" aria-hidden="true">
               <svg className="social-provider-icon" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.3c1.9-1.8 2.9-4.4 2.9-7.4Z" />
@@ -49,16 +51,27 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 <path fill="#FBBC05" d="M6.4 14a6 6 0 0 1 0-3.9V7.5H3a10 10 0 0 0 0 9.1L6.4 14Z" />
                 <path fill="#EA4335" d="M12 5.9c1.5 0 2.8.5 3.9 1.5l2.9-2.9A9.8 9.8 0 0 0 3 7.5l3.4 2.6A6 6 0 0 1 12 5.9Z" />
               </svg>
+            </span>
+            Continue with Google
+          </Link>
+          {/* <Link className="workos-button" href="/api/auth/apple" prefetch={false}>
+            <span className="social-provider-icons" aria-hidden="true">
               <svg className="social-provider-icon" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M17.1 12.6c0-2.8 2.3-4.2 2.4-4.3A5.2 5.2 0 0 0 15.4 6c-1.8-.2-3.4 1-4.3 1s-2.2-1-3.7-1A5.5 5.5 0 0 0 2.8 8.8c-2 3.4-.5 8.4 1.4 11.2.9 1.4 2 2.9 3.5 2.8 1.4-.1 1.9-.9 3.6-.9s2.2.9 3.7.9c1.5 0 2.5-1.4 3.4-2.7a12.2 12.2 0 0 0 1.6-3.3 4.9 4.9 0 0 1-2.9-4.2ZM14.2 4.1A4.9 4.9 0 0 0 15.3.5a5 5 0 0 0-3.3 1.7 4.7 4.7 0 0 0-1.2 3.5 4.1 4.1 0 0 0 3.4-1.6Z" />
               </svg>
+            </span>
+            Continue with Apple
+          </Link> */}
+          <Link className="workos-button" href="/api/auth/github" prefetch={false}>
+            <span className="social-provider-icons" aria-hidden="true">
               <svg className="social-provider-icon" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M12 .7A11.5 11.5 0 0 0 8.4 23c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.3 11.3 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .7Z" />
               </svg>
             </span>
-            Login with Social
+            Continue with GitHub
           </Link>
-          <div className="login-security"><span className="status-dot" /><p><strong>Secure Gathos authentication</strong><small>Both sign-in methods create the same secure HTTP-only session.</small></p></div>
+          <Link className="workos-button" href="/api/auth/login" prefetch={false}>Continue with organization SSO</Link>
+          <div className="login-security"><span className="status-dot" /><p><strong>Secure Gathos authentication</strong><small>Every sign-in method creates the same secure HTTP-only session.</small></p></div>
           <p className="login-legal">By continuing, you agree to the Gathos <a href={`${siteUrl}/legal?tab=terms`}>Terms</a> and <a href={`${siteUrl}/legal?tab=privacy`}>Privacy Policy</a>.</p>
         </div>
         <Link className="back-to-site" href={siteUrl}><ArrowLeftIcon size={14} /> Back to site</Link>
