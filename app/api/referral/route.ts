@@ -1,3 +1,4 @@
+import { cookieName } from "@/lib/cookie-names";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getBackendUrl } from "@/lib/server-user";
@@ -10,7 +11,7 @@ const THIRTY_DAYS = 30 * 24 * 60 * 60;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) {
+  if (origin && origin !== (process.env.APP_ORIGIN || request.nextUrl.origin)) {
     return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
   }
   const body = await request.json().catch(() => null) as { code?: unknown } | null;
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // First touch wins in the browser as well as in the database.
-  const existing = request.cookies.get("gathos_ref")?.value;
+  const existing = request.cookies.get(cookieName("gathos_ref"))?.value;
   if (existing) return NextResponse.json({ ok: true, code: existing, captured: false });
 
   const clickUrl = new URL(`${getBackendUrl()}/api/affiliate/click`);
@@ -32,8 +33,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const response = NextResponse.json({ ok: true, code, captured: true });
-  response.cookies.set("gathos_ref", code, {
-    domain: request.nextUrl.hostname.endsWith("gathos.live") ? ".gathos.live" : undefined,
+  response.cookies.set(cookieName("gathos_ref"), code, {
+    domain: process.env.COOKIE_DOMAIN || (request.nextUrl.hostname.endsWith("gathos.live") ? ".gathos.live" : undefined),
     httpOnly: true,
     maxAge: THIRTY_DAYS,
     path: "/",

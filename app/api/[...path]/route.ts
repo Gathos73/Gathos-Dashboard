@@ -1,3 +1,5 @@
+import { signClientAddress } from "@/lib/client-address";
+import { cookieName } from "@/lib/cookie-names";
 import type { NextRequest } from "next/server";
 
 import { getBackendUrl } from "@/lib/server-user";
@@ -103,7 +105,7 @@ function isAllowedRoute(path: string[], method: string): boolean {
 function hasPermittedOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return SAFE_METHODS.has(request.method);
-  return origin === request.nextUrl.origin;
+  return origin === (process.env.APP_ORIGIN || request.nextUrl.origin);
 }
 
 async function readRequestBody(request: NextRequest): Promise<ArrayBuffer | undefined> {
@@ -135,12 +137,13 @@ async function readRequestBody(request: NextRequest): Promise<ArrayBuffer | unde
   return body.buffer as ArrayBuffer;
 }
 
-function requestHeaders(request: NextRequest): Headers {
+function requestHeaders(request: NextRequest, upstreamPath: string): Headers {
   const headers = new Headers(request.headers);
   for (const name of HOP_BY_HOP_HEADERS) headers.delete(name);
   for (const name of CLIENT_IDENTITY_HEADERS) headers.delete(name);
   headers.delete("accept-encoding");
   headers.set("x-gathos-client", "dashboard-bff");
+  signClientAddress(request.headers, headers, request.method, upstreamPath);
   return headers;
 }
 
@@ -200,7 +203,7 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
     return Response.json({ error: "invalid_request_body" }, { status: 400 });
   }
 
-  const token = request.cookies.get("gathos_session")?.value;
+  const token = request.cookies.get(cookieName("gathos_session"))?.value;
   const refreshAccount = !SAFE_METHODS.has(request.method) || path.join("/") === "auth/me";
   if (token && refreshAccount) accountCache.invalidate(token);
   const startedAt = Date.now();
@@ -209,7 +212,7 @@ async function forward(request: NextRequest, context: RouteContext): Promise<Res
     let upstream = await fetch(upstreamUrl, {
       body: rawBody,
       cache: "no-store",
-      headers: requestHeaders(request),
+      headers: requestHeaders(request, upstreamUrl.pathname),
       method: request.method,
       redirect: "manual",
       signal,

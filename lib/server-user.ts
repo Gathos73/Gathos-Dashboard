@@ -1,3 +1,4 @@
+import { cookieName } from "@/lib/cookie-names";
 import "server-only";
 
 import { cache } from "react";
@@ -6,7 +7,6 @@ import { redirect } from "next/navigation";
 
 import { DEMO_USER } from "@/lib/demo-data";
 import { verifySession } from "@/lib/session-token";
-import { accountCache } from "@/lib/server-account-cache";
 import type { DashboardUser } from "@/lib/types";
 
 type MeResponse = { user?: DashboardUser | null };
@@ -21,12 +21,12 @@ export function isDemoMode(): boolean {
 
 export async function getServerDashboardData<T>(path: string): Promise<T | null> {
   if (isDemoMode()) return null;
-  const token = (await cookies()).get("gathos_session")?.value;
+  const token = (await cookies()).get(cookieName("gathos_session"))?.value;
   if (!token) return null;
   try {
     const response = await fetch(`${getBackendUrl()}/api/${path.replace(/^\/+/, "")}`, {
       cache: "no-store",
-      headers: { cookie: `gathos_session=${encodeURIComponent(token)}` },
+      headers: { cookie: `${cookieName("gathos_session")}=${encodeURIComponent(token)}` },
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return null;
@@ -39,18 +39,18 @@ export async function getServerDashboardData<T>(path: string): Promise<T | null>
 export const getCurrentUser = cache(async (): Promise<DashboardUser | null> => {
   if (isDemoMode()) return DEMO_USER;
 
-  const token = (await cookies()).get("gathos_session")?.value;
+  const token = (await cookies()).get(cookieName("gathos_session"))?.value;
   if (!token) return null;
   const secret = process.env.SESSION_SECRET;
   const identity = secret ? verifySession(token, secret) : null;
   if (secret && !identity) return null;
-  // Cache account presentation only after local verification. Backend APIs still
-  // authorize every protected operation against their current account state.
-  return accountCache.read(token, async () => {
+  // A valid signature does not prove current access. React cache deduplicates
+  // this check only within the current server render, never across requests.
+  return (async () => {
     try {
       const response = await fetch(`${getBackendUrl()}/api/auth/me`, {
         cache: "no-store",
-        headers: { cookie: `gathos_session=${encodeURIComponent(token)}` },
+        headers: { cookie: `${cookieName("gathos_session")}=${encodeURIComponent(token)}` },
         signal: AbortSignal.timeout(5_000),
       });
       if (response.status === 401) return null;
@@ -64,28 +64,11 @@ export const getCurrentUser = cache(async (): Promise<DashboardUser | null> => {
     } catch (error) {
       throw new Error("Account details are temporarily unavailable. Please retry.", { cause: error });
     }
-  }, Boolean(identity));
+  })();
 });
 
-export const getSessionUser = cache(async (): Promise<DashboardUser | null> => {
-  if (isDemoMode()) return DEMO_USER;
-
-  const token = (await cookies()).get("gathos_session")?.value;
-  if (!token) return null;
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) return getCurrentUser();
-  const identity = verifySession(token, secret);
-  if (!identity) return null;
-  return {
-    userId: identity.userId,
-    email: identity.email,
-    name: identity.name?.trim() || identity.email.split("@")[0] || "Gathos user",
-    avatar: identity.avatar,
-    plan: identity.plan || "free",
-    priority_support: Boolean(identity.priority_support),
-    is_superuser: Boolean(identity.is_superuser),
-  };
-});
+// Layouts must observe revocation just like data APIs.
+export const getSessionUser = getCurrentUser;
 
 export async function requireUser(): Promise<DashboardUser> {
   const user = await getCurrentUser();

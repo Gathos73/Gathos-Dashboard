@@ -1,4 +1,4 @@
-export const API_BASE = "https://api.gathos.live/api/v1";
+export const API_BASE = `${process.env.NEXT_PUBLIC_API_URL || "https://api.gathos.live"}/api/v1`;
 
 export const EXAMPLE_LANGUAGES = ["Bash (curl)", "Python (requests)", "JavaScript (Node.js)"] as const;
 export type ExampleLanguage = (typeof EXAMPLE_LANGUAGES)[number];
