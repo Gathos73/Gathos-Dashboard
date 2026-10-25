@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import { CheckIcon, WarningIcon } from "@/components/icons";
-import { dashboardRequest, jsonRequest } from "@/lib/client-api";
+import { DashboardApiError, dashboardRequest, jsonRequest } from "@/lib/client-api";
 
 type AuthMode = "signin" | "register";
 type RegisterStep = "details" | "verify" | "password";
@@ -16,12 +16,14 @@ function errorMessage(error: unknown, fallback: string): string {
 export function LoginForm() {
   const router = useRouter();
   const otpInputs = useRef<Array<HTMLInputElement | null>>([]);
+  const registrationInFlight = useRef(false);
   const [mode, setMode] = useState<AuthMode>("signin");
   const [registerStep, setRegisterStep] = useState<RegisterStep>("details");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [verificationToken, setVerificationToken] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
@@ -37,6 +39,7 @@ export function LoginForm() {
     setRegisterStep("details");
     setPassword("");
     setOtp(["", "", "", "", "", ""]);
+    setVerificationToken("");
     setError("");
   }
 
@@ -95,10 +98,11 @@ export function LoginForm() {
     setError("");
     setIsSubmitting(true);
     try {
-      await dashboardRequest<{ ok: boolean }>(
+      const result = await dashboardRequest<{ ok: boolean; verification_token?: string }>(
         "/api/otp/verify",
         jsonRequest({ email: email.trim(), code, purpose: "verify" }, { method: "POST" }),
       );
+      setVerificationToken(result.verification_token ?? "");
       setRegisterStep("password");
     } catch (requestError) {
       setError(errorMessage(requestError, "The code could not be verified. Please try again."));
@@ -109,22 +113,43 @@ export function LoginForm() {
 
   async function submitPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (registrationInFlight.current) return;
     if (password.length < 8) {
       setError("Password must be at least eight characters.");
       return;
     }
     setError("");
     setIsSubmitting(true);
+    registrationInFlight.current = true;
     try {
       await dashboardRequest<{ ok: boolean }>(
         "/api/otp/register",
-        jsonRequest({ email: email.trim(), name: name.trim(), password }, { method: "POST" }),
+        jsonRequest({ email: email.trim(), name: name.trim(), password, verification_token: verificationToken }, { method: "POST" }),
       );
       router.replace("/");
       router.refresh();
     } catch (requestError) {
+      // If the first request committed but its response was lost (or a double
+      // submit raced before React disabled the button), registration returns
+      // 409. Authenticate with the just-submitted password before treating it
+      // as a real pre-existing-account conflict.
+      if (requestError instanceof DashboardApiError && requestError.status === 409) {
+        try {
+          await dashboardRequest<{ ok: boolean }>(
+            "/api/otp/login",
+            jsonRequest({ email: email.trim(), password }, { method: "POST" }),
+          );
+          router.replace("/");
+          router.refresh();
+          return;
+        } catch {
+          // Preserve the original registration error when credentials do not match.
+        }
+      }
       setError(errorMessage(requestError, "Your account could not be created. Please try again."));
       setIsSubmitting(false);
+    } finally {
+      registrationInFlight.current = false;
     }
   }
 
@@ -195,7 +220,7 @@ export function LoginForm() {
           <button className="button button-primary login-submit" disabled={isSubmitting || otp.join("").length !== 6} type="submit">{isSubmitting ? "Verifying…" : "Verify code"}</button>
           <div className="login-step-actions">
             <button disabled={isSubmitting || resendSeconds > 0} onClick={() => void sendVerificationCode()} type="button">{resendSeconds > 0 ? `Resend in ${resendSeconds}s` : "Resend code"}</button>
-            <button disabled={isSubmitting} onClick={() => { setRegisterStep("details"); setOtp(["", "", "", "", "", ""]); setError(""); }} type="button">Change email</button>
+            <button disabled={isSubmitting} onClick={() => { setRegisterStep("details"); setOtp(["", "", "", "", "", ""]); setVerificationToken(""); setError(""); }} type="button">Change email</button>
           </div>
         </form>
       ) : null}
