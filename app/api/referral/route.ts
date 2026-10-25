@@ -9,6 +9,17 @@ export const runtime = "nodejs";
 const CODE_PATTERN = /^[A-Z0-9_-]{2,80}$/i;
 const THIRTY_DAYS = 30 * 24 * 60 * 60;
 
+function referralCookieDomain(hostname: string): string | undefined {
+  const configured = process.env.COOKIE_DOMAIN?.trim();
+  if (configured) {
+    const normalized = configured.toLowerCase().replace(/^\./, "").replace(/\.$/, "");
+    if (hostname === normalized || hostname.endsWith(`.${normalized}`)) return configured;
+  }
+  if (hostname === "gathos.com" || hostname.endsWith(".gathos.com")) return ".gathos.com";
+  if (hostname === "gathos.live" || hostname.endsWith(".gathos.live")) return ".gathos.live";
+  return undefined;
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const origin = request.headers.get("origin");
   if (origin && origin !== (process.env.APP_ORIGIN || request.nextUrl.origin)) {
@@ -34,7 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const response = NextResponse.json({ ok: true, code, captured: true });
   response.cookies.set(cookieName("gathos_ref"), code, {
-    domain: process.env.COOKIE_DOMAIN || (request.nextUrl.hostname.endsWith("gathos.live") ? ".gathos.live" : undefined),
+    domain: referralCookieDomain(request.nextUrl.hostname.toLowerCase()),
     httpOnly: true,
     maxAge: THIRTY_DAYS,
     path: "/",
