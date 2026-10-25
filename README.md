@@ -88,3 +88,16 @@ CSV sources take precedence over local files and use the `Actual Name` API ID
 and `Voice Sample (public link)` columns. Public Google Drive links are downloaded
 and checked for WAV/MP3 audio, preventing sharing/login pages from being uploaded
 as recordings. The import uses the existing proxy catalog endpoint only.
+
+## Self-hosted environment isolation
+
+Set server-only `APP_ORIGIN` to the external HTTPS origin when a reverse proxy
+forwards to a local listener. Browser mutations must match this configured
+origin; forwarded client headers do not select the allowed origin.
+
+Set server-only `COOKIE_PREFIX` to the same value as the backend (for example
+`dev_`) when environments share a parent domain. The default empty prefix
+preserves existing cookies. Keep session signing secrets separate between
+environments. The dashboard referral route also accepts `COOKIE_DOMAIN`.
+
+Build-time `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_API_URL` select landing-page links and API examples. These are public URLs, never credentials.

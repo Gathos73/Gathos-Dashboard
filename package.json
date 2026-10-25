@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start --port 3002",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:generations": "node --test lib/generation-request.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.44.0",
