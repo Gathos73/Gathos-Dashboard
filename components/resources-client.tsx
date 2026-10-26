@@ -347,7 +347,7 @@ function SkillsCatalog({ query }: { query: string }) {
       <div className="skills-intro"><div><p className="panel-kicker">Agent-ready workflows</p><h2>Install a complete creative workflow.</h2></div><p>Each skill is a plain Markdown instruction file. It reads your Gathos keys from environment variables and works with shell-capable coding agents.</p></div>
       <div className="skills-grid">
         {filtered.map((skill) => {
-          const install = `mkdir -p ~/.claude/skills/${skill.id} && curl -sL ${process.env.NEXT_PUBLIC_API_URL || "https://api.gathos.live"}/skills/${skill.file} > ~/.claude/skills/${skill.id}/SKILL.md`;
+          const install = `mkdir -p ~/.claude/skills/${skill.id} && curl -sL ${process.env.NEXT_PUBLIC_API_URL || "https://api.gathos.com"}/skills/${skill.file} > ~/.claude/skills/${skill.id}/SKILL.md`;
           return (
             <article className={`panel skill-card skill-card--${skill.accent}`} key={skill.id}>
               <div className="skill-card-heading"><span><SparklesIcon /></span><small>Gathos agent skill</small></div>
@@ -355,7 +355,7 @@ function SkillsCatalog({ query }: { query: string }) {
               <div className="skill-services">{skill.services.map((service) => <span key={service}>{service}</span>)}</div>
               <div className="skill-output"><span>Output</span><strong>{skill.output}</strong></div>
               <CodeBlock title="Install for Claude Code">{install}</CodeBlock>
-              <a className="text-link" href={`${process.env.NEXT_PUBLIC_API_URL || "https://api.gathos.live"}/skills/${skill.file}`} rel="noreferrer" target="_blank">Read the skill file <ArrowUpRightIcon /></a>
+              <a className="text-link" href={`${process.env.NEXT_PUBLIC_API_URL || "https://api.gathos.com"}/skills/${skill.file}`} rel="noreferrer" target="_blank">Read the skill file <ArrowUpRightIcon /></a>
             </article>
           );
         })}
