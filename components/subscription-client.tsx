@@ -138,8 +138,8 @@ export function SubscriptionClient({
     label: details.display_name || "Plan unavailable",
     price: details.display_price || formatPlanPrice(details.price_minor, details.currency),
     cadence: details.billing_label || ({ month: "per month", year: "per year", none: "" }[details.billing_interval] ?? details.billing_interval),
-  } : { label: "Plan unavailable", price: "Unavailable", cadence: "" };
-  const accessActive = user.access_active ?? !(user.plan === "trial" && user.trial?.expired);
+  } : { label: "No active plan", price: "Choose a plan to get access", cadence: "" };
+  const accessActive = user.access_active === true;
   const trialExpired = user.plan === "trial" && user.trial?.expired;
   const trialProgress = user.trial
     ? Math.min(100, Math.round((user.trial.window_used / Math.max(1, user.trial.window_limit ?? 1)) * 100))

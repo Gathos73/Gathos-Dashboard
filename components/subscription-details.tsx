@@ -19,7 +19,7 @@ export function SubscriptionDetails({ user }: { user: DashboardUser }) {
     return (
       <section className="subscription-details" aria-labelledby="subscription-details-title">
         <h2 id="subscription-details-title">Subscription details</h2>
-        <p>No current subscription details are available for this account.</p>
+        <p>No active subscription. Choose a plan to get access.</p>
       </section>
     );
   }

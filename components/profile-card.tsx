@@ -51,7 +51,7 @@ export function ProfileCard({ demo, user: initialUser }: { demo: boolean; user: 
         <section className="panel profile-identity-card">
           <div className="profile-avatar-large">{initials(user.name)}</div>
           <div className="profile-identity-copy">
-            <span className="status-badge status-badge--violet">{user.plan_details?.display_name || "Plan unavailable"}</span>
+            <span className="status-badge status-badge--violet">{user.plan_details?.display_name || "No active plan"}</span>
             <h2>{user.name}</h2>
             <p>{user.email}</p>
           </div>
@@ -64,7 +64,7 @@ export function ProfileCard({ demo, user: initialUser }: { demo: boolean; user: 
             <dl className="detail-list">
               <div><dt>Display name</dt><dd>{user.name}</dd></div>
               <div><dt>Email address</dt><dd>{user.email}</dd></div>
-              <div><dt>Current plan</dt><dd><span className="status-badge status-badge--success">{user.plan_details?.display_name || "Plan unavailable"}</span></dd></div>
+              <div><dt>Current plan</dt><dd><span className={`status-badge ${user.access_active === true ? "status-badge--success" : "status-badge--danger"}`}>{user.plan_details?.display_name || "No active plan"}</span></dd></div>
               <div><dt>Authentication</dt><dd>Secure session</dd></div>
             </dl>
           </section>

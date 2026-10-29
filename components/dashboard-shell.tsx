@@ -297,7 +297,7 @@ export function DashboardShell({ children, user: initialUser }: { children: Reac
             <span className="user-avatar">{initials(user.name)}</span>
             <span className="user-copy">
               <strong>{user.name}</strong>
-              <small>{user.plan_details?.display_name || "Plan unavailable"}</small>
+              <small>{user.plan_details?.display_name || "No active plan"}</small>
             </span>
             <ChevronRightIcon className="profile-chevron" />
           </Link>
@@ -339,7 +339,7 @@ export function DashboardShell({ children, user: initialUser }: { children: Reac
             </nav>
           </div>
           <div className="topbar-actions">
-            <span className="plan-badge">{user.plan_details?.display_name || "Plan unavailable"}</span>
+            <span className="plan-badge">{user.plan_details?.display_name || "No active plan"}</span>
             <div className="dashboard-search-wrap">
               <form
                 className="dashboard-search"
