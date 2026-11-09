@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   CheckIcon,
@@ -21,7 +21,59 @@ import type { ApiKeyRecord, ApiKeyType, DashboardUser } from "@/lib/types";
 
 type KeysResponse = { keys?: ApiKeyRecord[] };
 
+const DEMO_PRODUCT_TAGS = new Map([
+  ["image", "t2i"],
+  ["image2image", "i2i"],
+  ["video", "t2v"],
+  ["tts", "tts"],
+  ["stt", "stt"],
+]);
+
 const numberFormatter = new Intl.NumberFormat("en-US");
+
+function subscribeToStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
+function ApiKeyWalkthrough({ userId }: { userId: string }) {
+  const storageKey = `gathos:api-key-walkthrough:v1:${userId}`;
+  const [dismissed, setDismissed] = useState(false);
+  const showWalkthrough = useSyncExternalStore(
+    subscribeToStorage,
+    () => {
+      try {
+        return window.localStorage.getItem(storageKey) !== "dismissed";
+      } catch {
+        return true;
+      }
+    },
+    () => false,
+  );
+
+  if (dismissed || !showWalkthrough) return null;
+
+  function dismiss() {
+    setDismissed(true);
+    try {
+      window.localStorage.setItem(storageKey, "dismissed");
+    } catch {
+      // The panel still closes when browser storage is unavailable.
+    }
+  }
+
+  return (
+    <section className="panel api-key-walkthrough" aria-labelledby="api-key-walkthrough-title">
+      <h2 id="api-key-walkthrough-title">What’s new with API keys</h2>
+      <ol>
+        <li><strong>Recognize the product from its prefix.</strong> For example, <code>gth-t2i-</code> marks a text-to-image key.</li>
+        <li><strong>Find and reveal a new key.</strong> Use search and status filters to find it, then select Reveal key to view or copy it while it’s active.</li>
+        <li><strong>Keep using your existing keys.</strong> If you need to view an older key you no longer have, create a replacement, update your app, then revoke the old key.</li>
+      </ol>
+      <button className="button button-secondary button-small" onClick={dismiss} type="button">Got it</button>
+    </section>
+  );
+}
 
 function formatDate(value?: string | null): string {
   if (!value) return "Never";
@@ -55,11 +107,23 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
   const [creating, setCreating] = useState(false);
   const [createdSecret, setCreatedSecret] = useState<{ name: string; value: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [revealing, setRevealing] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const demoSecrets = useRef(new Map<string, string>());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const createDialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!demo) void refresh(); }, [demo, refresh]);
+
+  useEffect(() => {
+    if (!createdSecret) return;
+    const timer = window.setTimeout(() => setCreatedSecret(null), 60_000);
+    const hideWhenAway = () => { if (document.hidden) setCreatedSecret(null); };
+    document.addEventListener("visibilitychange", hideWhenAway);
+    return () => { window.clearTimeout(timer); document.removeEventListener("visibilitychange", hideWhenAway); };
+  }, [createdSecret]);
 
   useEffect(() => {
     if (demo || initialKeys !== undefined) return;
@@ -114,9 +178,9 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
   const SERVICES = useMemo(() => {
     return keyProducts(user, keys).map((product) => ({
       type: product.code, label: product.name, color: "green", icon: KeyIcon,
-      description: "Application credentials", prefix: "gth_live_", available: product.available !== false,
+      description: "Application credentials", available: product.available !== false,
     })).concat([{ type: "unknown", label: "Other keys", color: "blue", icon: KeyIcon,
-      description: "Keys with no current product access", prefix: "", available: false }]);
+      description: "Keys with no current product access", available: false }]);
   }, [user, keys]);
   const firstAvailableType = SERVICES.find((service) => service.available && canCreateProductKey(user, service.type))?.type;
 
@@ -138,7 +202,12 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
     try {
       let created: ApiKeyRecord;
       if (demo) {
-        const secret = `${service.prefix}${crypto.randomUUID().replaceAll("-", "")}`;
+        const bytes = crypto.getRandomValues(new Uint8Array(25));
+        const token = btoa(String.fromCharCode(...bytes)).slice(0, 33).replaceAll("+", "-").replaceAll("/", "_");
+        const tag = DEMO_PRODUCT_TAGS.get(type);
+        if (!tag) throw new Error("This product is unavailable in the demo.");
+        const prefix = `gth-${tag}-`;
+        const secret = prefix + token;
         created = {
           calls_count: 0,
           created_at: new Date().toISOString(),
@@ -146,7 +215,7 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
           generations_count: 0,
           id: crypto.randomUUID(),
           is_active: true,
-          key_hint: secret.slice(-4),
+          key_hint: `${prefix}...${secret.slice(-4)}`,
           last_used_at: null,
           name: cleanName,
           type,
@@ -158,7 +227,8 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
         );
       }
       const { full_key: secret, ...safeCreated } = created;
-      const normalized = normalizeKey(safeCreated as ApiKeyRecord);
+      const normalized = normalizeKey({ ...safeCreated, can_reveal: true } as ApiKeyRecord);
+      if (demo && secret) demoSecrets.current.set(normalized.id, secret);
       setKeys((current) => [normalized, ...current]);
       setExpandedService(type);
       if (secret) setCreatedSecret({ name: cleanName, value: secret });
@@ -171,12 +241,31 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
     }
   }
 
+  async function revealKey(key: ApiKeyRecord) {
+    setRevealing(key.id);
+    setError("");
+    try {
+      const response = demo
+        ? { full_key: demoSecrets.current.get(key.id) }
+        : await dashboardRequest<{ full_key: string }>(`/api/auth/keys/${key.id}/reveal`, { method: "POST", cache: "no-store" });
+      if (!response.full_key) throw new Error("This older key cannot be revealed. Create a replacement key.");
+      setCopied(false);
+      setCreatedSecret({ name: key.name, value: response.full_key });
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "The API key could not be revealed.");
+    } finally {
+      setRevealing(null);
+    }
+  }
+
   async function deleteKey(id: string) {
     setDeleting(id);
     setError("");
     try {
       if (!demo) await dashboardRequest<{ ok: boolean }>(`/api/auth/keys/${id}`, { method: "DELETE" });
       setKeys((current) => current.filter((key) => key.id !== id));
+      setCreatedSecret(null);
+      demoSecrets.current.delete(id);
       setConfirmDelete(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "The API key could not be deleted.");
@@ -205,10 +294,12 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
             <PlusIcon /> Create key
           </button>
         }
-        description="Create separate credentials for each application and service. Secrets are shown once."
+        description="Create separate credentials for each application and service. View and copy active keys when you need them."
         eyebrow="Developer credentials"
         title="API keys"
       />
+
+      {!demo && user.userId ? <ApiKeyWalkthrough key={user.userId} userId={user.userId} /> : null}
 
       {!(user.product_codes ?? []).some((code) => canCreateProductKey(user, code)) ? (
         <div className="inline-notice inline-notice--warning">
@@ -222,8 +313,8 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
           <div className="secret-reveal-heading">
             <span><CheckIcon /></span>
             <div>
-              <h2 id="new-key-title">{createdSecret.name} is ready</h2>
-              <p>Copy this secret now. For your security, Gathos cannot show it again.</p>
+              <h2 id="new-key-title">{createdSecret.name}</h2>
+              <p>Keep this key private. You can reveal it again while it is active.</p>
             </div>
           </div>
           <div className="secret-value-row">
@@ -232,7 +323,7 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
               {copied ? <CheckIcon /> : <CopyIcon />} {copied ? "Copied" : "Copy key"}
             </button>
           </div>
-          <button className="text-button" onClick={() => setCreatedSecret(null)} type="button">I saved it</button>
+          <button className="text-button" onClick={() => setCreatedSecret(null)} type="button">Hide key</button>
         </section>
       ) : null}
 
@@ -243,6 +334,13 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
         <div><span>Services</span><strong>{new Set(keys.map((key) => key.type)).size}</strong></div>
       </section>
 
+      <div className="key-filters">
+        <label>Search keys<input type="search" placeholder="Name or key prefix" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+        <label>Status<select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="all">All keys</option><option value="active">Active</option><option value="revoked">Revoked</option>
+        </select></label>
+      </div>
+
       {loading ? (
         <div className="key-service-accordion" aria-busy="true" aria-label="Loading API keys">
           {SERVICES.map((service) => <div className="skeleton skeleton-service-accordion" key={service.type} />)}
@@ -251,9 +349,14 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
         <div className="key-service-accordion">
           {SERVICES.map((service) => {
             const Icon = service.icon;
-            const serviceKeys = keys.filter((key) => service.type === "unknown"
-              ? !(key.product_codes?.length) && key.type === "unknown"
-              : keyMatchesProduct(key, service.type));
+            const serviceKeys = keys.filter((key) => {
+              const matchesService = service.type === "unknown"
+                ? !(key.product_codes?.length) && key.type === "unknown"
+                : keyMatchesProduct(key, service.type);
+              const matchesStatus = status === "all" || (status === "active" ? key.is_active : !key.is_active);
+              const matchesSearch = `${key.name} ${key.key_hint}`.toLowerCase().includes(search.trim().toLowerCase());
+              return matchesService && matchesStatus && matchesSearch;
+            });
             if (service.type === "unknown" && !serviceKeys.length) return null;
             return (
               <section className="panel key-service-item" key={service.type}>
@@ -293,8 +396,14 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
                               {apiKey.is_active ? "Active" : "Revoked"}
                             </span>
                           </div>
-                          <code>{apiKey.key_hint}••••</code>
+                          <code>{apiKey.key_hint}</code>
                         </div>
+                        {apiKey.is_active ? <button
+                          className="text-button"
+                          disabled={!apiKey.can_reveal || revealing === apiKey.id}
+                          title={apiKey.can_reveal ? "View this API key" : "Older keys need replacement before they can be viewed"}
+                          onClick={() => revealKey(apiKey)} type="button"
+                        >{revealing === apiKey.id ? "Revealing…" : apiKey.can_reveal ? "Reveal key" : "Replace to reveal"}</button> : null}
                         {confirmDelete === apiKey.id ? (
                           <div className="delete-actions">
                             <button className="text-button" onClick={() => setConfirmDelete(null)} type="button">Cancel</button>

@@ -75,7 +75,7 @@ export type ApiKeyType = string;
 
 export type ApiKeyRecord = {
   product_name?: string;
-  scope?: "all_entitled" | "selected_products";
+  can_reveal?: boolean;
   product_codes?: string[];
   calls_count: number;
   created_at: string;

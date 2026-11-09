@@ -6195,3 +6195,26 @@ pre,
 .usage-service-chart .chart-inspector-services { display: flex; flex-wrap: wrap; gap: 8px; }
 .usage-service-chart .chart-inspector-services span { display: inline-flex; align-items: center; gap: 4px; }
 .usage-service-chart .legend-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+
+.key-filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
+.key-filters label { display: grid; gap: .4rem; }
+
+.api-key-walkthrough {
+  margin-bottom: 18px;
+  padding: 20px;
+}
+
+.api-key-walkthrough h2 {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.api-key-walkthrough ol {
+  line-height: 1.6;
+  margin: 12px 0 16px;
+  padding-inline-start: 1.25rem;
+}
+
+.api-key-walkthrough li + li {
+  margin-top: 6px;
+}
