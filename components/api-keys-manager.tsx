@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 
 import {
   CheckIcon,
-  ChevronDownIcon,
   CopyIcon,
+  EyeIcon,
   KeyIcon,
   PlusIcon,
   TrashIcon,
@@ -67,7 +67,7 @@ function ApiKeyWalkthrough({ userId }: { userId: string }) {
       <h2 id="api-key-walkthrough-title">What’s new with API keys</h2>
       <ol>
         <li><strong>Recognize the product from its prefix.</strong> For example, <code>gth-t2i-</code> marks a text-to-image key.</li>
-        <li><strong>Find and reveal a new key.</strong> Use search and status filters to find it, then select Reveal key to view or copy it while it’s active.</li>
+        <li><strong>Find and reveal a new key.</strong> Use search and status filters to find it, then select the eye icon to view or copy it while it’s active.</li>
         <li><strong>Keep using your existing keys.</strong> If you need to view an older key you no longer have, create a replacement, update your app, then revoke the old key.</li>
       </ol>
       <button className="button button-secondary button-small" onClick={dismiss} type="button">Got it</button>
@@ -98,7 +98,6 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
   const { user: account, refresh } = useDashboardAccount(initialUser);
   const user = account.products ? account : initialUser;
   const [keys, setKeys] = useState<ApiKeyRecord[]>(demo ? DEMO_KEYS : (initialKeys ?? []));
-  const [expandedService, setExpandedService] = useState<ApiKeyType | null>(null);
   const [loading, setLoading] = useState(!demo && initialKeys === undefined);
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -110,6 +109,7 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
   const [revealing, setRevealing] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [productFilter, setProductFilter] = useState("");
   const demoSecrets = useRef(new Map<string, string>());
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -182,6 +182,14 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
     })).concat([{ type: "unknown", label: "Other keys", color: "blue", icon: KeyIcon,
       description: "Keys with no current product access", available: false }]);
   }, [user, keys]);
+  const filteredKeys = keys.filter((key) => {
+    const matchesProduct = !productFilter || (productFilter === "unknown"
+      ? key.type === "unknown"
+      : keyMatchesProduct(key, productFilter));
+    const matchesStatus = status === "all" || (status === "active" ? key.is_active : !key.is_active);
+    const matchesSearch = `${key.name} ${key.key_hint}`.toLowerCase().includes(search.trim().toLowerCase());
+    return matchesProduct && matchesStatus && matchesSearch;
+  });
   const firstAvailableType = SERVICES.find((service) => service.available && canCreateProductKey(user, service.type))?.type;
 
   function openCreateForm(preferredType?: ApiKeyType) {
@@ -230,7 +238,9 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
       const normalized = normalizeKey({ ...safeCreated, can_reveal: true } as ApiKeyRecord);
       if (demo && secret) demoSecrets.current.set(normalized.id, secret);
       setKeys((current) => [normalized, ...current]);
-      setExpandedService(type);
+      setSearch("");
+      setStatus("all");
+      setProductFilter("");
       if (secret) setCreatedSecret({ name: cleanName, value: secret });
       setName("");
       setFormOpen(false);
@@ -334,122 +344,104 @@ export function ApiKeysManager({ demo, user: initialUser, initialKeys }: { demo:
         <div><span>Services</span><strong>{new Set(keys.map((key) => key.type)).size}</strong></div>
       </section>
 
-      <div className="key-filters">
+      <div className="key-filters api-key-filters">
         <label>Search keys<input type="search" placeholder="Name or key prefix" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+        <label>Product<select value={productFilter} onChange={(event) => setProductFilter(event.target.value)}>
+          <option value="">All products</option>
+          {SERVICES.map((service) => <option key={service.type} value={service.type}>{service.label}</option>)}
+        </select></label>
         <label>Status<select value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="all">All keys</option><option value="active">Active</option><option value="revoked">Revoked</option>
         </select></label>
       </div>
 
-      {loading ? (
-        <div className="key-service-accordion" aria-busy="true" aria-label="Loading API keys">
-          {SERVICES.map((service) => <div className="skeleton skeleton-service-accordion" key={service.type} />)}
+      <section className="panel api-key-table-panel" aria-label="API keys" aria-busy={loading}>
+        <div className="api-key-table-heading">
+          <h2>All keys</h2>
+          <span role="status">{loading ? "Loading keys…" : `${filteredKeys.length} of ${keys.length} keys`}</span>
         </div>
-      ) : (
-        <div className="key-service-accordion">
-          {SERVICES.map((service) => {
-            const Icon = service.icon;
-            const serviceKeys = keys.filter((key) => {
-              const matchesService = service.type === "unknown"
-                ? !(key.product_codes?.length) && key.type === "unknown"
-                : keyMatchesProduct(key, service.type);
-              const matchesStatus = status === "all" || (status === "active" ? key.is_active : !key.is_active);
-              const matchesSearch = `${key.name} ${key.key_hint}`.toLowerCase().includes(search.trim().toLowerCase());
-              return matchesService && matchesStatus && matchesSearch;
-            });
-            if (service.type === "unknown" && !serviceKeys.length) return null;
-            return (
-              <section className="panel key-service-item" key={service.type}>
-                <h2 className="key-service-title">
-                  <button
-                    aria-controls={`key-service-panel-${service.type}`}
-                    aria-expanded={expandedService === service.type}
-                    className="key-service-heading"
-                    id={`key-service-trigger-${service.type}`}
-                    onClick={() => setExpandedService((current) => current === service.type ? null : service.type)}
-                    type="button"
-                  >
-                    <span className={`service-icon service-icon--${service.color}`}><Icon /></span>
-                    <span className="key-service-copy">
-                      <span className="key-service-label">{service.label}</span>
-                      <span className="key-service-description">{service.description}</span>
-                    </span>
-                    <span className="count-badge" aria-label={`${serviceKeys.length} keys`}>{serviceKeys.length}</span>
-                    <ChevronDownIcon className="key-service-chevron" />
-                  </button>
-                </h2>
-                <div
-                  aria-labelledby={`key-service-trigger-${service.type}`}
-                  className="key-list"
-                  hidden={expandedService !== service.type}
-                  id={`key-service-panel-${service.type}`}
-                  role="region"
-                >
-                  {serviceKeys.length ? serviceKeys.map((apiKey) => (
-                    <article className="key-row" key={apiKey.id}>
-                      <div className="key-row-main">
-                        <span className="key-row-icon"><KeyIcon /></span>
-                        <div>
-                          <div className="key-name-line">
-                            <strong>{apiKey.name}</strong>
-                            <span className={apiKey.is_active ? "status-badge status-badge--success" : "status-badge"}>
-                              {apiKey.is_active ? "Active" : "Revoked"}
-                            </span>
-                          </div>
-                          <code>{apiKey.key_hint}</code>
-                        </div>
+        <div className="table-scroll" role="region" aria-label="API keys table" tabIndex={0}>
+          <table className="data-table api-key-table">
+            <thead>
+              <tr>
+                {["Key", "Product", "Status", "Usage", "Created", "Last used", "Actions"].map((label) => (
+                  <th scope="col" key={label}>{label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={7}><div className="api-key-table-empty">Loading API keys…</div></td></tr>
+              ) : filteredKeys.length ? filteredKeys.map((apiKey) => {
+                const service = SERVICES.find((item) => keyMatchesProduct(apiKey, item.type));
+                return (
+                  <tr key={apiKey.id}>
+                    <th scope="row" className="api-key-name">
+                      <strong>{apiKey.name}</strong>
+                      <code>{apiKey.key_hint}</code>
+                    </th>
+                    <td>{apiKey.product_name || service?.label || apiKey.type}</td>
+                    <td><span className={apiKey.is_active ? "status-badge status-badge--success" : "status-badge"}>
+                      {apiKey.is_active ? "Active" : "Revoked"}
+                    </span></td>
+                    <td className="api-key-usage">
+                      <span>{numberFormatter.format(apiKey.calls_count)} calls</span>
+                      <span>{numberFormatter.format(apiKey.generations_count)} generations</span>
+                    </td>
+                    <td className="api-key-date">{formatDate(apiKey.created_at)}</td>
+                    <td className="api-key-date">{formatDate(apiKey.last_used_at)}</td>
+                    <td>
+                      <div className="api-key-actions">
                         {apiKey.is_active ? <button
-                          className="text-button"
+                          className="icon-button api-key-reveal-button"
                           disabled={!apiKey.can_reveal || revealing === apiKey.id}
-                          title={apiKey.can_reveal ? "View this API key" : "Older keys need replacement before they can be viewed"}
+                          aria-busy={revealing === apiKey.id}
+                          title={apiKey.can_reveal ? `View ${apiKey.name}` : "Older keys need replacement before they can be viewed"}
+                          aria-label={apiKey.can_reveal ? `Reveal ${apiKey.name}` : `Replace ${apiKey.name} to reveal`}
                           onClick={() => revealKey(apiKey)} type="button"
-                        >{revealing === apiKey.id ? "Revealing…" : apiKey.can_reveal ? "Reveal key" : "Replace to reveal"}</button> : null}
-                        {confirmDelete === apiKey.id ? (
+                        ><EyeIcon /></button> : null}
+                        {apiKey.is_active && (confirmDelete === apiKey.id ? (
                           <div className="delete-actions">
                             <button className="text-button" onClick={() => setConfirmDelete(null)} type="button">Cancel</button>
                             <button
                               className="button button-danger button-small"
                               disabled={deleting === apiKey.id}
                               onClick={() => deleteKey(apiKey.id)}
+                              aria-label={`Confirm revoke ${apiKey.name}`}
                               type="button"
-                            >
-                              {deleting === apiKey.id ? "Deleting…" : "Delete"}
-                            </button>
+                            >{deleting === apiKey.id ? "Revoking…" : "Revoke"}</button>
                           </div>
                         ) : (
                           <button
-                            aria-label={`Delete ${apiKey.name}`}
+                            aria-label={`Revoke ${apiKey.name}`}
+                            title="Revoke key"
                             className="icon-button key-delete-button"
                             onClick={() => setConfirmDelete(apiKey.id)}
                             type="button"
-                          >
-                            <TrashIcon />
-                          </button>
-                        )}
+                          ><TrashIcon /></button>
+                        ))}
                       </div>
-                      <div className="key-row-meta">
-                        <span><strong>{numberFormatter.format(apiKey.generations_count)}</strong> generations</span>
-                        <span><strong>{numberFormatter.format(apiKey.calls_count)}</strong> calls</span>
-                        <span>Last used <strong>{formatDate(apiKey.last_used_at)}</strong></span>
-                      </div>
-                    </article>
-                  )) : (
-                    <div className="service-empty">
-                      <span className={`service-icon service-icon--${service.color}`}><KeyIcon /></span>
-                      <p>No {service.label.toLowerCase()} keys yet.</p>
-                      {canCreateProductKey(user, service.type) ? (
-                        <button className="text-button" onClick={() => openCreateForm(service.type)} type="button">
-                          Create your first key
-                        </button>
-                      ) : <small>Plan access required</small>}
-                    </div>
-                  )}
-                </div>
-              </section>
-            );
-          })}
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr><td colSpan={7}>
+                  <div className="api-key-table-empty">
+                    <KeyIcon />
+                    <strong>{keys.length ? "No keys match your filters" : "Create your first API key"}</strong>
+                    <p>{keys.length ? "Try a different search, product, or status." : "Create a key to connect an application to a product."}</p>
+                    {keys.length ? (
+                      <button className="text-button" onClick={() => { setSearch(""); setStatus("all"); setProductFilter(""); }} type="button">Clear filters</button>
+                    ) : firstAvailableType ? (
+                      <button className="button button-primary button-small" onClick={() => openCreateForm()} type="button">Create key</button>
+                    ) : null}
+                  </div>
+                </td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </section>
 
       {formOpen ? (
         <div aria-labelledby="create-key-title" aria-modal="true" className="modal-layer" role="dialog">

@@ -12,6 +12,7 @@ import {
   Copy,
   CreditCard,
   ExternalLink,
+  Eye,
   Headset,
   Image,
   Key,
@@ -54,6 +55,7 @@ export const ChevronRightIcon = createDashboardIcon(ChevronRight);
 export const CloseIcon = createDashboardIcon(X);
 export const CopyIcon = createDashboardIcon(Copy);
 export const ExternalLinkIcon = createDashboardIcon(ExternalLink);
+export const EyeIcon = createDashboardIcon(Eye);
 export const ImageIcon = createDashboardIcon(Image);
 export const KeyIcon = createDashboardIcon(Key);
 export const LogoutIcon = createDashboardIcon(LogOut);

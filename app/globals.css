@@ -6199,6 +6199,124 @@ pre,
 .key-filters { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.5rem 0; }
 .key-filters label { display: grid; gap: .4rem; }
 
+.api-key-filters label:first-child {
+  flex: 1 1 220px;
+}
+
+.api-key-filters input,
+.api-key-filters select {
+  min-height: 40px;
+}
+
+.api-key-table-panel {
+  overflow: hidden;
+}
+
+.api-key-table-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 18px 20px;
+}
+
+.api-key-table-heading h2 {
+  font-size: 14px;
+  margin: 0;
+}
+
+.api-key-table-heading span {
+  color: var(--muted-light);
+  font-size: 12px;
+}
+
+.api-key-table {
+  margin-top: 0;
+  min-width: 860px;
+}
+
+.api-key-table th,
+.api-key-table td {
+  padding: 9px 12px;
+  vertical-align: middle;
+}
+
+.api-key-table tbody .api-key-name {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  background: inherit;
+  max-width: 240px;
+  min-width: 170px;
+  overflow-wrap: anywhere;
+  text-transform: none;
+}
+
+.api-key-name strong,
+.api-key-name code,
+.api-key-usage span {
+  display: block;
+}
+
+.api-key-name code {
+  color: var(--muted-light);
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.api-key-usage {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.api-key-usage span + span {
+  color: var(--muted-light);
+  margin-top: 3px;
+}
+
+.api-key-date {
+  white-space: nowrap;
+}
+
+.api-key-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.api-key-reveal-button {
+  height: 29px;
+  width: 29px;
+}
+
+.api-key-reveal-button:disabled,
+.api-key-reveal-button:disabled:hover {
+  background: transparent;
+  color: var(--muted-light);
+  cursor: not-allowed;
+  opacity: .4;
+}
+
+.api-key-table-empty {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 48px 20px;
+}
+
+.api-key-table-empty svg {
+  height: 24px;
+  width: 24px;
+}
+
+.api-key-table-empty p {
+  margin: 0;
+}
+
 .api-key-walkthrough {
   margin-bottom: 18px;
   padding: 20px;
