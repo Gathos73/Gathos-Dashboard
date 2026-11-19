@@ -64,6 +64,10 @@ function isAllowedRoute(path: string[], method: string): boolean {
 
   if (joined === "auth/me" || joined === "auth/usage") return methodIs(method, "GET", "HEAD");
   if (joined === "auth/plans") return methodIs(method, "GET", "HEAD");
+  if (joined === "auth/checkout") return method === "POST";
+  if (path.length === 3 && path[0] === "auth" && path[1] === "checkout" && UUID_PATTERN.test(path[2])) {
+    return methodIs(method, "GET", "HEAD");
+  }
   if (joined === "auth/logout") return method === "POST";
   if (["auth/google", "auth/apple", "auth/github", "auth/login"].includes(joined)) {
     return methodIs(method, "GET", "HEAD");

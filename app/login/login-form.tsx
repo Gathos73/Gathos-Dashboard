@@ -13,11 +13,11 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function LoginForm() {
+export function LoginForm({ destination = "/", purchasing = false }: { destination?: string; purchasing?: boolean }) {
   const router = useRouter();
   const otpInputs = useRef<Array<HTMLInputElement | null>>([]);
   const registrationInFlight = useRef(false);
-  const [mode, setMode] = useState<AuthMode>("signin");
+  const [mode, setMode] = useState<AuthMode>(purchasing ? "register" : "signin");
   const [registerStep, setRegisterStep] = useState<RegisterStep>("details");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -52,7 +52,7 @@ export function LoginForm() {
         "/api/otp/login",
         jsonRequest({ email: email.trim(), password }, { method: "POST" }),
       );
-      router.replace("/");
+      router.replace(destination);
       router.refresh();
     } catch (requestError) {
       setError(errorMessage(requestError, "Sign-in could not be completed. Please try again."));
@@ -126,7 +126,7 @@ export function LoginForm() {
         "/api/otp/register",
         jsonRequest({ email: email.trim(), name: name.trim(), password, verification_token: verificationToken }, { method: "POST" }),
       );
-      router.replace("/");
+      router.replace(destination);
       router.refresh();
     } catch (requestError) {
       // If the first request committed but its response was lost (or a double
@@ -139,7 +139,7 @@ export function LoginForm() {
             "/api/otp/login",
             jsonRequest({ email: email.trim(), password }, { method: "POST" }),
           );
-          router.replace("/");
+          router.replace(destination);
           router.refresh();
           return;
         } catch {

@@ -14,7 +14,7 @@ export class DashboardApiError extends Error {
 
 export async function dashboardRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
-  const live = url === "/api/auth/me" || url.startsWith("/api/playground/jobs/") || url.endsWith("/url");
+  const live = url === "/api/auth/me" || url.startsWith("/api/auth/checkout/") || url.startsWith("/api/playground/jobs/") || url.endsWith("/url");
   if (method === "GET" && !live && options.cache !== "no-store" && typeof window !== "undefined") {
     return cachedRequest(url, () => uncachedRequest<T>(url, { ...options, signal: undefined }), options.signal, options.cache === "reload");
   }

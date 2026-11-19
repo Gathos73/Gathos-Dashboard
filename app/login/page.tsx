@@ -4,11 +4,12 @@ import { redirect } from "next/navigation";
 
 import { ArrowLeftIcon, AnalyticsIcon, CheckIcon, KeyIcon, SparklesIcon } from "@/components/icons";
 import { getCurrentUser } from "@/lib/server-user";
+import { purchaseDestination, selectedPlan, selectedCheckout } from "@/lib/purchase";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-type LoginPageProps = { searchParams: Promise<{ error?: string; logged_out?: string }> };
+type LoginPageProps = { searchParams: Promise<{ error?: string; logged_out?: string; plan?: string; checkout?: string }> };
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://gathos.com";
 
@@ -28,7 +29,12 @@ const AUTH_ERRORS: Record<string, string> = {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const [user, parameters] = await Promise.all([getCurrentUser(), searchParams]);
-  if (user) redirect("/");
+  const plan = selectedPlan(parameters.plan);
+  const checkout = selectedCheckout(parameters.checkout);
+  const destination = purchaseDestination(plan, checkout);
+  if (user) redirect(destination);
+  const dashboardOrigin = process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_DASHBOARD_URL || "https://dashboard.gathos.com";
+  const authQuery = destination === "/" ? "" : "?return_to=" + encodeURIComponent(new URL(destination, dashboardOrigin).toString());
   const error = parameters.error ? AUTH_ERRORS[parameters.error] || "Sign-in could not be completed." : "";
 
   return (
@@ -37,13 +43,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="login-card">
           <div className="login-mobile-brand"><span aria-hidden="true" className="brand-mark">G</span><strong className="brand-wordmark">Gathos</strong></div>
           <p className="eyebrow">Welcome to Gathos</p>
-          <h1>Access your dashboard</h1>
+          <h1>{plan ? "Continue with your selected plan" : "Access your dashboard"}</h1>
           <p className="login-description">Sign in, create an account with verified email, or continue with social login and organization SSO.</p>
           {parameters.logged_out === "1" ? <div className="inline-notice inline-notice--success"><CheckIcon /> You have been signed out.</div> : null}
           {error ? <div className="inline-notice inline-notice--danger" role="alert">{error}</div> : null}
-          <LoginForm />
+          <LoginForm destination={destination} purchasing={Boolean(plan)} />
           <div className="login-divider"><span>or</span></div>
-          <Link className="workos-button" href="/api/auth/google" prefetch={false}>
+          <Link className="workos-button" href={`/api/auth/google${authQuery}`} prefetch={false}>
             <span className="social-provider-icons" aria-hidden="true">
               <svg className="social-provider-icon" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.9h5.4a4.6 4.6 0 0 1-2 3v2.5h3.3c1.9-1.8 2.9-4.4 2.9-7.4Z" />
@@ -62,7 +68,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </span>
             Continue with Apple
           </Link> */}
-          <Link className="workos-button" href="/api/auth/github" prefetch={false}>
+          <Link className="workos-button" href={`/api/auth/github${authQuery}`} prefetch={false}>
             <span className="social-provider-icons" aria-hidden="true">
               <svg className="social-provider-icon" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M12 .7A11.5 11.5 0 0 0 8.4 23c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.3 11.3 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .7Z" />
@@ -70,7 +76,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </span>
             Continue with GitHub
           </Link>
-          <Link className="workos-button" href="/api/auth/login" prefetch={false}>Continue with organization SSO</Link>
+          <Link className="workos-button" href={`/api/auth/login${authQuery}`} prefetch={false}>Continue with organization SSO</Link>
           <div className="login-security"><span className="status-dot" /><p><strong>Secure Gathos authentication</strong><small>Every sign-in method creates the same secure HTTP-only session.</small></p></div>
           <p className="login-legal">By continuing, you agree to the Gathos <a href={`${siteUrl}/legal?tab=terms`}>Terms</a> and <a href={`${siteUrl}/legal?tab=privacy`}>Privacy Policy</a>.</p>
         </div>

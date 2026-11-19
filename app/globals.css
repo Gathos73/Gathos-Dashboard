@@ -6336,3 +6336,95 @@ pre,
 .api-key-walkthrough li + li {
   margin-top: 6px;
 }
+
+/* Purchase pages remain outside the dashboard shell. */
+.purchase-page {
+  min-height: 100svh;
+  padding: 28px clamp(20px, 5vw, 64px);
+  background: var(--background);
+  color: var(--ink);
+}
+.purchase-brand {
+  display: inline-block;
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.07em;
+  text-decoration: none;
+}
+.purchase-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 680px;
+  margin: clamp(72px, 15vh, 160px) auto 48px;
+  text-align: center;
+}
+.purchase-content h1 {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 50px);
+  line-height: 1.12;
+  letter-spacing: -0.05em;
+}
+.purchase-content p { margin: 0; color: var(--muted); }
+.purchase-content .eyebrow { color: var(--accent); }
+.purchase-secondary { color: var(--accent); text-underline-offset: 4px; }
+.purchase-next-steps { width: 100%; margin-top: 12px; }
+.purchase-next-steps h2 {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.purchase-next-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.purchase-next-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--white);
+  text-align: left;
+}
+.purchase-next-card > svg { width: 20px; height: 20px; color: var(--accent); }
+.purchase-next-card h3 { margin: 0; font-size: 16px; letter-spacing: -0.025em; }
+.purchase-next-card p { font-size: 13px; }
+.purchase-next-card .button { margin-top: auto; }
+@media (max-width: 520px) {
+  .purchase-next-grid { grid-template-columns: 1fr; }
+}
+.purchase-check {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  color: var(--success);
+  background: var(--success-soft);
+}
+.purchase-check > svg { width: 28px; height: 28px; }
+.purchase-confetti { position: absolute; top: 50%; left: 50%; pointer-events: none; }
+.purchase-confetti span {
+  position: absolute;
+  width: 5px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--confetti-color);
+  animation: purchase-confetti-burst 950ms ease-out both;
+}
+@keyframes purchase-confetti-burst {
+  0% { transform: scale(0.3); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate(var(--confetti-x), var(--confetti-y)) rotate(var(--confetti-spin)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .purchase-confetti { display: none; }
+}
