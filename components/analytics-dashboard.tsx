@@ -294,7 +294,7 @@ export function AnalyticsDashboard({
             <div className="panel-heading">
               <div><p className="panel-kicker">Current allowance</p><h2>Usage limits</h2></div>
             </div>
-            <p className="analytics-period">Live plan and service limits, independent of the chart date range. All request allowances reset together at the next UTC window boundary. The overall cap covers combined usage across all services. Queued reservations count toward your allowance.</p>
+            <p className="analytics-period">Live plan and service limits, independent of the chart date range. All request allowances reset together at the next UTC window boundary. The overall cap covers combined usage across all services. Only successful generations count as used. Pending generations reserve capacity until they finish.</p>
             {!data.limits ? <p className="empty-row">Limit information is unavailable. Refresh to try again.</p>
               : !data.limits.access_active ? <p className="empty-row">An active plan is required to generate content.</p>
               : !data.limits.items.some((limit) => limit.kind === "requests") ? <p className="empty-row">No request caps are configured for your plan.</p>
@@ -302,6 +302,7 @@ export function AnalyticsDashboard({
                 <article className="usage-limit-card" key={limit.id}>
                   <h3>{limit.label === "All services" ? "Overall" : limit.label}</h3>
                   <strong aria-label={`${limit.used} of ${limit.limit} requests used`}>{numberFormatter.format(limit.used)}/{numberFormatter.format(limit.limit)}</strong>
+                  <p>{numberFormatter.format(limit.reserved ?? 0)} reserved · {numberFormatter.format(limit.remaining)} available</p>
                   <p>Used/total{limit.window_seconds ? ` · UTC windows of ${limit.window_seconds / 3600} hours` : ""}</p>
                   {limit.resets_at ? <p>Window resets: <time dateTime={limit.resets_at}>{formatTimestamp(limit.resets_at)}</time> (local time)</p>
                     : <p>{limit.used === 0 ? "No reset pending." : "No scheduled replenishment."}</p>}

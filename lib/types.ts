@@ -123,6 +123,7 @@ export type UsageLimits = {
     limit: number;
     used: number;
     remaining: number;
+    reserved?: number;
     resets_at: string | null;
     window_seconds: number | null;
   }>;
