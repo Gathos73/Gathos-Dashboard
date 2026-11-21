@@ -72,7 +72,7 @@ function isAllowedRoute(path: string[], method: string): boolean {
   if (["auth/google", "auth/apple", "auth/github", "auth/login"].includes(joined)) {
     return methodIs(method, "GET", "HEAD");
   }
-  if (["otp/login", "otp/send", "otp/verify", "otp/register"].includes(joined)) return method === "POST";
+  if (["otp/login", "otp/send", "otp/verify", "otp/register", "otp/forgot-password"].includes(joined)) return method === "POST";
   if (joined === "auth/keys") return methodIs(method, "GET", "POST", "HEAD");
   if (path.length === 3 && path[0] === "auth" && path[1] === "keys") {
     return method === "DELETE" && UUID_PATTERN.test(path[2]);

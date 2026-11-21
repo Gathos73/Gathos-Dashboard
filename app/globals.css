@@ -3609,32 +3609,66 @@ textarea::placeholder {
   gap: 14px;
 }
 
-.login-mode-tabs {
-  background: #f4f0e8;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  display: grid;
-  gap: 4px;
-  grid-template-columns: 1fr 1fr;
-  padding: 4px;
-}
-
-.login-mode-tabs button {
+.login-text-button {
   background: transparent;
   border: 0;
-  border-radius: 6px;
-  color: var(--muted);
+  color: var(--accent);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
   font-weight: 650;
-  min-height: 35px;
+  padding: 4px 0;
+  text-underline-offset: 3px;
 }
 
-.login-mode-tabs button.is-active {
-  background: var(--ink);
-  color: var(--white);
+.login-text-button:hover { text-decoration: underline; }
+.login-text-button:disabled { cursor: default; opacity: 0.5; }
+.login-text-button:focus-visible,
+.login-password-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
+
+.login-flow-heading .login-description { margin-bottom: 4px; }
+
+.login-mode-switch {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+  text-align: center;
+}
+
+.login-forgot {
+  font-size: 11px;
+  margin-top: -8px;
+  text-align: right;
+}
+
+.login-back-button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.login-password-input { position: relative; }
+.login-password-input input { padding-right: 46px; width: 100%; }
+.login-password-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  min-height: 40px;
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+}
+.login-password-toggle:hover { color: var(--ink); }
+.login-password-toggle:disabled { cursor: default; opacity: 0.5; }
 
 .login-step-heading {
   display: grid;
